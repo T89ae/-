@@ -1,0 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Tajawal", ui-sans-serif, system-ui, sans-serif;
+}
+
+
+body {
+  @apply bg-slate-50 text-slate-900;
+  direction: rtl;
+}
+
+.markdown-body h1 { @apply text-2xl font-bold mb-4; }
+.markdown-body h2 { @apply text-xl font-semibold mt-6 mb-3; }
+.markdown-body p { @apply mb-4 leading-relaxed; }
+.markdown-body ul { @apply list-disc list-inside mb-4; }
+.markdown-body li { @apply mb-2; }
+

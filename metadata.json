@@ -1,0 +1,9 @@
+{
+  "name": "نظام ثقة - Thiqa System",
+  "description": "نظام متكامل لإدارة مكاتب الخدمات، يشمل لوحة تحكم للمؤشرات، إدارة العمال والعملاء، ومتابعة الديون والمستحقات.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
