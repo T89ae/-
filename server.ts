@@ -6,7 +6,6 @@ import dotenv from 'dotenv';
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 import multer from 'multer';
-import nodemailer from 'nodemailer';
 import path from 'path';
 import fs from 'fs';
 import cors from 'cors';
@@ -32,33 +31,6 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
-
-// Email transporter setup
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-async function sendEmail(to: string, subject: string, text: string) {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.warn('Email credentials not set. Skipping email notification.');
-    return;
-  }
-  try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to,
-      subject,
-      text
-    });
-    console.log(`Email sent to ${to}`);
-  } catch (error) {
-    console.error('Email Send Error:', error);
-  }
-}
 
 async function startServer() {
   const app = express();
@@ -92,68 +64,9 @@ const server = http.createServer(app);
   app.use(cors());
   app.use('/uploads', express.static('uploads'));
 
-  // WebSocket Server
-  const wss = new WebSocketServer({ server });
-  const clients = new Map<number, WebSocket>();
-
-  wss.on('connection', (ws, req) => {
-    let userId: number | null = null;
-
-    ws.on('message', (message) => {
-      try {
-        const data = JSON.parse(message.toString());
-        if (data.type === 'auth') {
-          userId = data.userId;
-          if (userId) clients.set(userId, ws);
-        }
-      } catch (e) {
-        console.error('WS Message Error:', e);
-      }
-    });
-
-    ws.on('close', () => {
-      if (userId) clients.delete(userId);
-    });
-  });
-
-  // Helper to broadcast message
-  const broadcastToUser = (userId: number, message: any) => {
-    const client = clients.get(userId);
-    if (client && client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(message));
-    }
-  };
-
   // Logging Helper
   const logAction = (userId: number | null, action: string, details: string, req: express.Request) => {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    db.prepare('INSERT INTO logs (user_id, action, details, ip_address, created_at) VALUES (?, ?, ?, ?, ?)').run(
-      userId,
-      action,
-      details,
-      ip?.toString(),
-      new Date().toISOString()
-    );
-  };
-
-  // Auth Middleware
-  const requireRole = (roles: string[]) => {
-    return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-      const userId = req.headers['x-user-id'];
-      if (!userId) return res.status(401).json({ status: 'error', message: 'Unauthorized' });
-      
-      const user = db.prepare(`
-        SELECT roles.role_name 
-        FROM users 
-        JOIN roles ON users.role_id = roles.id 
-        WHERE users.id = ?
-      `).get(userId) as any;
-      
-      if (!user || !roles.includes(user.role_name)) {
-        return res.status(403).json({ status: 'error', message: 'Forbidden' });
-      }
-      next();
-    };
+    // Logging disabled as logs table was removed
   };
 
   // Sales API
@@ -174,17 +87,20 @@ const server = http.createServer(app);
     const remainingAmount = salePrice - pAmount;
 
     const info = db.prepare(`
-      INSERT INTO sales (service, price, client, date, supplier_name, wholesale_price, net_profit, paid_amount, remaining_amount, created_by) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(service, salePrice, client, saleDate, supplier_name, wPrice, netProfit, pAmount, remainingAmount, userId);
+      INSERT INTO sales (service, price, client, date, supplier_name, wholesale_price, net_profit, paid_amount, remaining_amount) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(service, salePrice, client, saleDate, supplier_name, wPrice, netProfit, pAmount, remainingAmount);
     
+    const saleId = info.lastInsertRowid;
+
     // Auto-register expense if wholesale price exists
     if (wPrice > 0) {
-      db.prepare('INSERT INTO expenses (title, amount, date, category_id) VALUES (?, ?, ?, ?)').run(
+      db.prepare('INSERT INTO expenses (title, amount, date, category_id, sale_id) VALUES (?, ?, ?, ?, ?)').run(
         `تكلفة جملة: ${service}`,
         wPrice,
         saleDate,
-        5 // 'أخرى' category
+        5, // 'أخرى' category
+        saleId
       );
     }
 
@@ -206,6 +122,31 @@ const server = http.createServer(app);
       SET service = ?, price = ?, client = ?, date = ?, supplier_name = ?, wholesale_price = ?, net_profit = ?, paid_amount = ?, remaining_amount = ? 
       WHERE id = ?
     `).run(service, salePrice, client, date, supplier_name, wPrice, netProfit, pAmount, remainingAmount, req.params.id);
+
+    // Update or create linked expense
+    if (wPrice > 0) {
+      const existingExpense = db.prepare('SELECT id FROM expenses WHERE sale_id = ?').get(req.params.id) as any;
+      if (existingExpense) {
+        db.prepare('UPDATE expenses SET title = ?, amount = ?, date = ? WHERE id = ?').run(
+          `تكلفة جملة: ${service}`,
+          wPrice,
+          date,
+          existingExpense.id
+        );
+      } else {
+        db.prepare('INSERT INTO expenses (title, amount, date, category_id, sale_id) VALUES (?, ?, ?, ?, ?)').run(
+          `تكلفة جملة: ${service}`,
+          wPrice,
+          date,
+          5,
+          req.params.id
+        );
+      }
+    } else {
+      // If wholesale price is now 0, remove the linked expense
+      db.prepare('DELETE FROM expenses WHERE sale_id = ?').run(req.params.id);
+    }
+
     res.json({ status: 'ok' });
   });
 
@@ -339,12 +280,6 @@ const server = http.createServer(app);
     const otherDebts = db.prepare("SELECT SUM(amount) as total FROM debts WHERE status != 'paid'").get() as any;
     const totalOutstandingDebts = (salesDebts?.total || 0) + (otherDebts?.total || 0);
 
-    // Super Admin stats
-    const usersCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as any;
-    const logsCount = db.prepare('SELECT COUNT(*) as count FROM logs').get() as any;
-    
-    // New stats for messaging and debts
-    const unreadMessages = db.prepare('SELECT COUNT(*) as count FROM messages WHERE is_read = 0').get() as any;
     const upcomingDebts = db.prepare("SELECT COUNT(*) as count FROM debts WHERE status != 'paid' AND due_date <= date('now', '+3 days')").get() as any;
 
     // Broker Dues stats
@@ -376,11 +311,11 @@ const server = http.createServer(app);
     `).get() as any;
 
     // Worker follow-up count
-    const today = new Date().toISOString().split('T')[0];
     const workersNeedingFollowup = db.prepare(`
       SELECT COUNT(*) as count 
       FROM workers 
       WHERE last_followup_date <= date('now', '-30 days')
+      OR last_followup_date IS NULL
     `).get() as any;
 
     // Get last 7 days of sales and expenses
@@ -410,17 +345,18 @@ const server = http.createServer(app);
       console.error('Error generating history:', e);
     }
 
+    const totalSalesVal = totalSales?.total || 0;
+    const totalExpensesVal = totalExpenses?.total || 0;
+
     res.json({
-      totalSales: totalSales?.total || 0,
-      totalExpenses: totalExpenses?.total || 0,
+      totalSales: totalSalesVal,
+      totalExpenses: totalExpensesVal,
+      netProfit: totalSalesVal - totalExpensesVal,
       salesCount: salesCount?.count || 0,
       workersCount: workersCount?.count || 0,
       clientsCount: clientsCount?.count || 0,
       pendingTasksCount: pendingTasks?.count || 0,
       outstandingDebts: totalOutstandingDebts,
-      usersCount: usersCount?.count || 0,
-      logsCount: logsCount?.count || 0,
-      unreadMessages: unreadMessages?.count || 0,
       upcomingDebts: upcomingDebts?.count || 0,
       workersNeedingFollowup: workersNeedingFollowup?.count || 0,
       brokerStats: {
@@ -532,13 +468,11 @@ const server = http.createServer(app);
 
   app.post('/api/workers', (req, res) => {
     const { name, job, sponsor, nid } = req.body;
-    const userId = req.headers['x-user-id'];
     const today = new Date().toISOString().split('T')[0];
     const info = db.prepare(`
-      INSERT INTO workers (name, job, sponsor, nid, registration_date, last_followup_date) 
+      INSERT INTO workers (name, job, sponsor, nid, registration_date, last_followup_date)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(name, job, sponsor, nid, today, today);
-    logAction(userId ? parseInt(userId as string) : null, 'WORKER_ADD', `Added worker: ${name}`, req);
     res.json({ id: info.lastInsertRowid, status: 'ok' });
   });
 
@@ -561,303 +495,6 @@ const server = http.createServer(app);
     res.json({ status: 'ok' });
   });
 
-  // Users API
-  app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
-    const user = db.prepare(`
-      SELECT users.*, roles.role_name 
-      FROM users 
-      JOIN roles ON users.role_id = roles.id 
-      WHERE username = ? AND password = ?
-    `).get(username, password) as any;
-    
-    if (user) {
-      if (user.is_active === 0) {
-        logAction(user.id, 'LOGIN_FAILED', 'Account is deactivated', req);
-        return res.status(403).json({ status: 'error', message: 'هذا الحساب معطل' });
-      }
-
-      // Check subscription
-      if (user.subscription_end) {
-        const today = new Date();
-        const endDate = new Date(user.subscription_end);
-        if (today > endDate && user.role_name !== 'super_admin') {
-          logAction(user.id, 'LOGIN_FAILED', 'Subscription expired', req);
-          return res.status(403).json({ status: 'error', message: 'انتهى اشتراكك، يرجى التواصل مع الإدارة' });
-        }
-      }
-
-      logAction(user.id, 'LOGIN_SUCCESS', 'User logged in', req);
-      res.json({ 
-        status: 'ok', 
-        user: { 
-          id: user.id, 
-          username: user.username, 
-          full_name: user.full_name, 
-          role: user.role_name,
-          role_id: user.role_id,
-          subscription_end: user.subscription_end
-        } 
-      });
-    } else {
-      logAction(null, 'LOGIN_FAILED', `Failed attempt for username: ${username}`, req);
-      res.status(401).json({ status: 'error', message: 'خطأ في اسم المستخدم أو كلمة المرور' });
-    }
-  });
-
-  // Super Admin - User Management
-  app.get('/api/admin/users', requireRole(['super_admin']), (req, res) => {
-    const users = db.prepare(`
-      SELECT users.*, roles.role_name 
-      FROM users 
-      JOIN roles ON users.role_id = roles.id
-    `).all();
-    res.json(users);
-  });
-
-  app.post('/api/admin/users', requireRole(['super_admin']), (req, res) => {
-    const { username, password, full_name, email, phone, role_id } = req.body;
-    const startDate = new Date();
-    const endDate = new Date();
-    endDate.setDate(startDate.getDate() + 30); // 30 days subscription
-
-    try {
-      const info = db.prepare(`
-        INSERT INTO users (username, password, full_name, email, phone, role_id, subscription_start, subscription_end)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        username, 
-        password, 
-        full_name, 
-        email, 
-        phone, 
-        role_id, 
-        startDate.toISOString().split('T')[0], 
-        endDate.toISOString().split('T')[0]
-      );
-      logAction(null, 'USER_ADD', `Added user: ${username}`, req);
-      res.json({ id: info.lastInsertRowid, status: 'ok' });
-    } catch (error: any) {
-      res.status(400).json({ status: 'error', message: error.message });
-    }
-  });
-
-  app.put('/api/admin/users/:id', requireRole(['super_admin']), (req, res) => {
-    const { full_name, role_id, is_active, password, email, phone, subscription_end } = req.body;
-    try {
-      if (password) {
-        db.prepare(`
-          UPDATE users 
-          SET full_name = ?, role_id = ?, is_active = ?, password = ?, email = ?, phone = ?, subscription_end = ? 
-          WHERE id = ?
-        `).run(full_name, role_id, is_active, password, email, phone, subscription_end, req.params.id);
-      } else {
-        db.prepare(`
-          UPDATE users 
-          SET full_name = ?, role_id = ?, is_active = ?, email = ?, phone = ?, subscription_end = ? 
-          WHERE id = ?
-        `).run(full_name, role_id, is_active, email, phone, subscription_end, req.params.id);
-      }
-      logAction(null, 'USER_UPDATE', `Updated user ID: ${req.params.id}`, req);
-      res.json({ status: 'ok' });
-    } catch (error: any) {
-      res.status(400).json({ status: 'error', message: error.message });
-    }
-  });
-
-  app.delete('/api/admin/users/:id', requireRole(['super_admin']), (req, res) => {
-    db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
-    logAction(null, 'USER_DELETE', `Deleted user ID: ${req.params.id}`, req);
-    res.json({ status: 'ok' });
-  });
-
-  app.get('/api/admin/roles', requireRole(['super_admin']), (req, res) => {
-    const roles = db.prepare('SELECT * FROM roles').all();
-    res.json(roles);
-  });
-
-  // Super Admin - Settings
-  app.get('/api/admin/settings', requireRole(['super_admin']), (req, res) => {
-    const settings = db.prepare('SELECT * FROM settings').all();
-    const settingsObj = settings.reduce((acc: any, curr: any) => {
-      acc[curr.key] = curr.value;
-      return acc;
-    }, {});
-    res.json(settingsObj);
-  });
-
-  app.post('/api/admin/settings', requireRole(['super_admin']), (req, res) => {
-    const updates = req.body;
-    const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
-    for (const [key, value] of Object.entries(updates)) {
-      stmt.run(key, value);
-    }
-    logAction(null, 'SETTINGS_UPDATE', 'Updated system settings', req);
-    res.json({ status: 'ok' });
-  });
-
-  app.get('/api/admin/reports', requireRole(['super_admin']), (req, res) => {
-    try {
-      const today = new Date();
-      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-      
-      const newUsers = db.prepare('SELECT COUNT(*) as count FROM users WHERE subscription_start >= ?').get(firstDayOfMonth) as any;
-      const activeSubs = db.prepare('SELECT COUNT(*) as count FROM users WHERE subscription_end >= ?').get(today.toISOString().split('T')[0]) as any;
-      const expiredSubs = db.prepare('SELECT COUNT(*) as count FROM users WHERE subscription_end < ?').get(today.toISOString().split('T')[0]) as any;
-      
-      const roleDistribution = db.prepare(`
-        SELECT roles.role_name, COUNT(users.id) as count 
-        FROM roles 
-        LEFT JOIN users ON roles.id = users.role_id 
-        GROUP BY roles.id
-      `).all();
-      
-      const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get() as any;
-      
-      const recentLogs = db.prepare(`
-        SELECT logs.*, users.full_name as user_name 
-        FROM logs 
-        LEFT JOIN users ON logs.user_id = users.id 
-        ORDER BY logs.created_at DESC 
-        LIMIT 10
-      `).all();
-
-      res.json({
-        newUsersCount: newUsers.count,
-        activeSubscriptions: activeSubs.count,
-        expiredSubscriptions: expiredSubs.count,
-        roleDistribution,
-        totalUsers: totalUsers.count,
-        recentLogs
-      });
-    } catch (error: any) {
-      res.status(500).json({ status: 'error', message: error.message });
-    }
-  });
-
-  // Super Admin - Logs
-  app.get('/api/admin/logs', requireRole(['super_admin']), (req, res) => {
-    const { action, userId, limit = 500 } = req.query;
-    let query = `
-      SELECT logs.*, users.full_name as user_name 
-      FROM logs 
-      LEFT JOIN users ON logs.user_id = users.id 
-      WHERE 1=1
-    `;
-    const params: any[] = [];
-
-    if (action && action !== 'all') {
-      query += ` AND logs.action LIKE ?`;
-      params.push(`%${action}%`);
-    }
-
-    if (userId) {
-      query += ` AND logs.user_id = ?`;
-      params.push(userId);
-    }
-
-    query += ` ORDER BY logs.created_at DESC LIMIT ?`;
-    params.push(limit);
-
-    const logs = db.prepare(query).all(...params);
-    res.json(logs);
-  });
-
-  app.get('/api/users', (req, res) => {
-    const users = db.prepare(`
-      SELECT users.id, users.username, users.full_name, roles.role_name as role, users.role_id
-      FROM users
-      JOIN roles ON users.role_id = roles.id
-    `).all();
-    res.json(users);
-  });
-
-  app.post('/api/users', (req, res) => {
-    const { username, password, full_name, role_id } = req.body;
-    try {
-      const info = db.prepare('INSERT INTO users (username, password, full_name, role_id) VALUES (?, ?, ?, ?)').run(username, password, full_name, role_id);
-      res.json({ id: info.lastInsertRowid, status: 'ok' });
-    } catch (error: any) {
-      res.status(400).json({ status: 'error', message: 'اسم المستخدم موجود مسبقاً' });
-    }
-  });
-
-  app.delete('/api/users/:id', (req, res) => {
-    db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
-    res.json({ status: 'ok' });
-  });
-
-  // Messaging API
-  app.get('/api/conversations/:userId', (req, res) => {
-    const userId = parseInt(req.params.userId);
-    const conversations = db.prepare(`
-      SELECT c.*, 
-             u.full_name as other_user_name,
-             u.id as other_user_id,
-             (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,
-             (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id AND sender_id != ? AND is_read = 0) as unread_count
-      FROM conversations c
-      JOIN users u ON (c.user1_id = u.id OR c.user2_id = u.id) AND u.id != ?
-      WHERE c.user1_id = ? OR c.user2_id = ?
-      ORDER BY c.last_message_at DESC
-    `).all(userId, userId, userId, userId);
-    res.json(conversations);
-  });
-
-  app.get('/api/messages/:conversationId', (req, res) => {
-    const messages = db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC').all(req.params.conversationId);
-    // Mark as read
-    db.prepare('UPDATE messages SET is_read = 1 WHERE conversation_id = ? AND sender_id != ?').run(req.params.conversationId, req.query.userId);
-    res.json(messages);
-  });
-
-  app.post('/api/messages', upload.single('file'), (req, res) => {
-    const { conversation_id, sender_id, receiver_id, content, type } = req.body;
-    const createdAt = new Date().toISOString();
-    let fileUrl = null;
-    let fileName = null;
-
-    if (req.file) {
-      fileUrl = `/uploads/${req.file.filename}`;
-      fileName = req.file.originalname;
-    }
-
-    let convId = conversation_id;
-    if (!convId) {
-      // Find or create conversation
-      const existing = db.prepare('SELECT id FROM conversations WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)').get(sender_id, receiver_id, receiver_id, sender_id) as any;
-      if (existing) {
-        convId = existing.id;
-      } else {
-        const info = db.prepare('INSERT INTO conversations (user1_id, user2_id, last_message_at) VALUES (?, ?, ?)').run(sender_id, receiver_id, createdAt);
-        convId = info.lastInsertRowid;
-      }
-    }
-
-    const info = db.prepare(`
-      INSERT INTO messages (conversation_id, sender_id, content, type, file_url, file_name, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(convId, sender_id, content, type || 'text', fileUrl, fileName, createdAt);
-
-    db.prepare('UPDATE conversations SET last_message_at = ? WHERE id = ?').run(createdAt, convId);
-
-    const newMessage = {
-      id: info.lastInsertRowid,
-      conversation_id: convId,
-      sender_id,
-      content,
-      type: type || 'text',
-      file_url: fileUrl,
-      file_name: fileName,
-      created_at: createdAt,
-      is_read: 0
-    };
-
-    broadcastToUser(parseInt(receiver_id), { type: 'new_message', message: newMessage });
-
-    res.json(newMessage);
-  });
-
   // Debts API
   app.get('/api/debts', (req, res) => {
     const debts = db.prepare('SELECT * FROM debts ORDER BY due_date ASC').all();
@@ -867,16 +504,33 @@ const server = http.createServer(app);
   app.post('/api/debts', (req, res) => {
     const { type, person_name, amount, due_date, description } = req.body;
     const createdAt = new Date().toISOString();
+    const debtAmount = parseFloat(amount) || 0;
     const info = db.prepare(`
       INSERT INTO debts (type, person_name, amount, due_date, description, created_at)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(type, person_name, amount, due_date, description, createdAt);
+    `).run(type, person_name, debtAmount, due_date, description, createdAt);
     res.json({ id: info.lastInsertRowid, status: 'ok' });
   });
 
   app.put('/api/debts/:id', (req, res) => {
     const { status, amount, due_date, description } = req.body;
-    db.prepare('UPDATE debts SET status = ?, amount = ?, due_date = ?, description = ? WHERE id = ?').run(status, amount, due_date, description, req.params.id);
+    const existing = db.prepare('SELECT * FROM debts WHERE id = ?').get(req.params.id) as any;
+    if (!existing) return res.status(404).json({ error: 'Debt not found' });
+
+    db.prepare(`
+      UPDATE debts 
+      SET status = ?, 
+          amount = ?, 
+          due_date = ?, 
+          description = ? 
+      WHERE id = ?
+    `).run(
+      status !== undefined ? status : existing.status,
+      amount !== undefined ? amount : existing.amount,
+      due_date !== undefined ? due_date : existing.due_date,
+      description !== undefined ? description : existing.description,
+      req.params.id
+    );
     res.json({ status: 'ok' });
   });
 
@@ -948,7 +602,7 @@ const server = http.createServer(app);
       SELECT ec.name as category, SUM(e.amount) as total 
       FROM expenses e
       JOIN expense_categories ec ON e.category_id = ec.id
-      ${dateFilter.replace('WHERE', 'AND')}
+      ${dateFilter ? dateFilter.replace('WHERE', 'WHERE e.') : ''}
       GROUP BY ec.name
     `).all(...params);
 
@@ -960,48 +614,6 @@ const server = http.createServer(app);
       salesByCategory,
       expensesByCategory
     });
-  });
-
-  // Roles API
-  app.get('/api/roles', (req, res) => {
-    const roles = db.prepare('SELECT * FROM roles').all();
-    res.json(roles);
-  });
-
-  // Attendance API
-  app.get('/api/attendance', (req, res) => {
-    const rows = db.prepare(`
-      SELECT users.full_name as username, attendance.date, attendance.check_in, attendance.check_out
-      FROM attendance
-      JOIN users ON attendance.user_id = users.id
-      ORDER BY attendance.date DESC, attendance.check_in DESC
-    `).all();
-    res.json(rows);
-  });
-
-  app.post('/api/attendance/checkin', (req, res) => {
-    const { user_id } = req.body;
-    const today = new Date().toISOString().split('T')[0];
-    const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    const existing = db.prepare('SELECT * FROM attendance WHERE user_id = ? AND date = ?').get(user_id, today);
-    if (!existing) {
-      db.prepare('INSERT INTO attendance (user_id, date, check_in) VALUES (?, ?, ?)').run(user_id, today, time);
-      res.json({ status: 'ok', time });
-    } else {
-      res.status(400).json({ status: 'error', message: 'تم تسجيل الحضور مسبقاً اليوم' });
-    }
-  });
-
-  app.post('/api/attendance/checkout', (req, res) => {
-    const { user_id } = req.body;
-    const today = new Date().toISOString().split('T')[0];
-    const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    const info = db.prepare('UPDATE attendance SET check_out = ? WHERE user_id = ? AND date = ?').run(time, user_id, today);
-    if (info.changes > 0) {
-      res.json({ status: 'ok', time });
-    } else {
-      res.status(400).json({ status: 'error', message: 'يجب تسجيل الحضور أولاً' });
-    }
   });
 
   // Clients API
@@ -1206,11 +818,11 @@ const server = http.createServer(app);
           const remaining = (s.amount || 0) - paid;
           
           db.prepare(`
-            INSERT INTO sales (customer_name, product_name, amount, date, supplier_name, wholesale_price, net_profit, paid_amount, remaining_amount, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sales (client, service, price, date, supplier_name, wholesale_price, net_profit, paid_amount, remaining_amount)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             s.customer_name, s.product_name, s.amount, s.date || new Date().toISOString().split('T')[0],
-            s.supplier_name, wholesale, netProfit, paid, remaining, userId
+            s.supplier_name, wholesale, netProfit, paid, remaining
           );
 
           if (remaining > 0) {
@@ -1223,8 +835,11 @@ const server = http.createServer(app);
 
       if (data.broker_dues) {
         for (const b of data.broker_dues) {
-          db.prepare('INSERT INTO broker_dues (broker_name, amount, status, notes, created_at) VALUES (?, ?, ?, ?, ?)').run(
-            b.broker_name, b.amount, b.status || 'pending', b.notes, new Date().toISOString()
+          db.prepare(`
+            INSERT INTO broker_dues (broker_name, total_amount, paid_amount, remaining_amount, status, notes, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            b.broker_name, b.amount, 0, b.amount, b.status || 'waiting', b.notes, new Date().toISOString()
           );
         }
       }
@@ -1282,14 +897,6 @@ const server = http.createServer(app);
         db.prepare('INSERT INTO debts (type, person_name, amount, description, created_at) VALUES (?, ?, ?, ?, ?)').run(
           'agent_debt', agent.name, debt, `دين من طلب: ${description}`, new Date().toISOString()
         );
-        
-        // Send email notification for debt
-        const adminEmail = process.env.ADMIN_EMAIL || 'Torkiali054@gmail.com';
-        sendEmail(
-          adminEmail,
-          'تنبيه دين جديد - مندوب متابعة',
-          `تم تسجيل دين جديد للمندوب: ${agent.name}\nالقيمة: ${debt} ر.س\nالوصف: ${description}`
-        );
       }
 
       res.json({ id: result.lastInsertRowid });
@@ -1311,13 +918,13 @@ const server = http.createServer(app);
       // 2. Profit Trends (Last 30 days vs Previous 30 days)
       const salesLast30 = db.prepare(`
         SELECT SUM(price) as total FROM sales 
-        WHERE date(created_at) >= date('now', '-30 days')
+        WHERE date(date) >= date('now', '-30 days')
       `).get() as any;
 
       const salesPrev30 = db.prepare(`
         SELECT SUM(price) as total FROM sales 
-        WHERE date(created_at) >= date('now', '-60 days') 
-        AND date(created_at) < date('now', '-30 days')
+        WHERE date(date) >= date('now', '-60 days') 
+        AND date(date) < date('now', '-30 days')
       `).get() as any;
 
       // 3. Upcoming Followups (Workers registered > 25 days ago and not followed up)
@@ -1344,16 +951,17 @@ const server = http.createServer(app);
   });
 
   app.post('/api/ai/perform-action', async (req, res) => {
-    const { action, userId } = req.body;
+    const { action } = req.body;
     try {
       const { type, data } = action;
       if (type === 'add_worker' || (type === 'create_client' && data.type === 'worker')) {
-        db.prepare(`INSERT INTO workers (name, job, sponsor, nid, registration_date) VALUES (?, ?, ?, ?, ?)`).run(
-          data.name, data.job || 'عامل', data.sponsor || 'غير محدد', data.nid || '', data.contract_date || new Date().toISOString().split('T')[0]
+        const regDate = data.contract_date || new Date().toISOString().split('T')[0];
+        db.prepare(`INSERT INTO workers (name, job, sponsor, nid, registration_date, last_followup_date) VALUES (?, ?, ?, ?, ?, ?)`).run(
+          data.name, data.job || 'عامل', data.sponsor || 'غير محدد', data.nid || '', regDate, regDate
         );
       } else if (type === 'add_sponsor' || (type === 'create_client' && data.type === 'sponsor')) {
-        db.prepare(`INSERT INTO sponsors (sponsor_name, national_id, phone, created_date, workers_count) VALUES (?, ?, ?, ?, ?)`).run(
-          data.name, data.national_id || '', data.phone || '', new Date().toISOString().split('T')[0], data.workers_count || 0
+        db.prepare(`INSERT INTO sponsors (sponsor_name, national_id, phone, broker_name, created_date, workers_count) VALUES (?, ?, ?, ?, ?, ?)`).run(
+          data.name, data.national_id || '', data.phone || '', data.broker || 'غير محدد', new Date().toISOString().split('T')[0], data.workers_count || 0
         );
       } else if (type === 'create_client' && data.type === 'middleman') {
         db.prepare('INSERT INTO clients (name, phone, category, created_at) VALUES (?, ?, ?, ?)').run(

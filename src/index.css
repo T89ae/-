@@ -57,11 +57,6 @@
 
 body {
   @apply bg-white text-slate-900 transition-colors duration-300;
-  background-image: 
-    linear-gradient(rgba(0, 191, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 191, 255, 0.05) 1px, transparent 1px);
-  background-size: 60px 60px;
-  background-attachment: fixed;
   direction: rtl;
 }
 

@@ -144,7 +144,7 @@ export const analyzeFileWithAI = async (fileContent: string, fileType: string) =
           role: 'user',
           parts: [
             { text: `Analyze this file content and extract structured data for a business management system. 
-            Classify the document type and extract entries for Workers, Sponsors (Kufala), and Mediators.
+            Classify the document type and extract entries for Workers, Sponsors (Kufala), Mediators, and Sales.
             Also identify any expenses or orders linked to specific agents.
             
             Return a JSON object with these keys: 
@@ -153,6 +153,8 @@ export const analyzeFileWithAI = async (fileContent: string, fileType: string) =
             - agents: array of {name, phone}
             - agent_requests: array of {agent_name, description, paid_amount, wholesale_price}
             - accounting: array of {title, amount, type (income/expense), date}
+            - workers: array of {name, job, sponsor, nid, registration_date}
+            - sales: array of {customer_name, product_name, amount, date, supplier_name, wholesale_price, paid_amount}
             
             Ensure phone numbers are validated as strings. 
             Only return the JSON object, no other text.

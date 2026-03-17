@@ -38,13 +38,7 @@ export const SECTIONS: Section[] = [
   { id: 'sponsors', title: 'إدارة الكفلاء', icon: <ShieldCheck size={20} />, description: 'إدارة الكفلاء والعمال المرتبطين بهم' },
   { id: 'workers', title: 'إدارة العمال', icon: <Users size={20} />, description: 'بيانات الموظفين والعمالة والمهام' },
   { id: 'worker_followup', title: 'متابعة العمال الشهرية', icon: <CalendarCheck size={20} />, description: 'متابعة دورية للعمال كل 30 يوم' },
-  { id: 'permissions', title: 'الصلاحيات', icon: <Lock size={20} />, description: 'إدارة أدوار المستخدمين' },
-  { id: 'admin_users', title: 'إدارة المستخدمين', icon: <Users size={20} />, description: 'التحكم في حسابات الموظفين والمديرين' },
-  { id: 'admin_reports', title: 'تقارير الإدارة', icon: <BarChart3 size={20} />, description: 'تقارير المستخدمين والاشتراكات والنشاطات' },
-  { id: 'messages', title: 'المراسلات والإشعارات', icon: <MessageSquare size={20} />, description: 'التواصل الداخلي والاشعارات' },
-  { id: 'admin_settings', title: 'إعدادات النظام', icon: <Settings size={20} />, description: 'تخصيص الخيارات العامة للموقع' },
   { id: 'file_analysis', title: 'إدارة الملفات وتحليل البيانات', icon: <FileSearch size={20} />, description: 'رفع وتحليل الملفات واستخراج البيانات تلقائياً' },
   { id: 'clients', title: 'قاعدة العملاء', icon: <UserPlus size={20} />, description: 'إدارة بيانات العملاء والعمليات المرتبطة بهم' },
   { id: 'agents', title: 'مناديب المتابعة', icon: <Users size={20} />, description: 'إدارة المناديب وطلبات الخدمة والديون' },
-  { id: 'ai_advisor', title: 'المستشار الذكي', icon: <PlayCircle size={20} />, description: 'تحليلات ذكية وتنبيهات استباقية لأداء العمل' },
 ];

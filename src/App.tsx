@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth, signInWithGoogle, logout } from './firebase';
-import { onAuthStateChanged } from 'firebase/auth';
 import { 
   Bell, 
   Search, 
@@ -44,22 +42,15 @@ import { SECTIONS } from './constants';
 import Logo from './components/Logo';
 import Dashboard from './components/Dashboard';
 import UserManual from './components/UserManual';
-import MessagingPage from './components/MessagingPage';
 import AccountingPage from './components/AccountingPage';
-import UserManagement from './components/UserManagement';
-import SystemSettings from './components/SystemSettings';
-import ActivityLogs from './components/ActivityLogs';
 import ConfirmModal from './components/ConfirmModal';
 import WorkerFollowupPage from './components/WorkerFollowupPage';
-import LandingPage from './components/LandingPage';
 import TasksPage from './components/TasksPage';
 import BrokersDuesPage from './components/BrokersDuesPage';
 import SalesDebtsPage from './components/SalesDebtsPage';
 import FileManagementPage from './components/FileManagementPage';
 import ClientsPage from './components/ClientsPage';
 import AgentsPage from './components/AgentsPage';
-import AIAdvisor from './components/AIAdvisor';
-import AIChatbot from './components/AIChatbot';
 
 // --- Components for the new sections ---
 
@@ -716,229 +707,6 @@ function SalesPage({ currentUser }: { currentUser: any }) {
   );
 }
 
-function UsersManagementPage({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
-  const [users, setUsers] = useState<any[]>([]);
-  const [roles, setRoles] = useState<any[]>([]);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [roleId, setRoleId] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [editingUser, setEditingUser] = useState<any>(null);
-
-  const isAdmin = currentUser?.role === 'super_admin';
-
-  const fetchUsers = async () => {
-    const res = await fetch('/api/admin/users', {
-      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
-    });
-    const data = await res.json();
-    setUsers(data);
-    setLoading(false);
-  };
-
-  const fetchRoles = async () => {
-    const res = await fetch('/api/admin/roles', {
-      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
-    });
-    const data = await res.json();
-    setRoles(data);
-    if (data.length > 0 && !roleId) setRoleId(data[0].id.toString());
-  };
-
-  useEffect(() => { 
-    fetchUsers(); 
-    fetchRoles();
-  }, [refreshCounter]);
-
-  const handleSubmit = async () => {
-    if (!username || !fullName || (!editingUser && !password)) return;
-    
-    const url = editingUser ? `/api/admin/users/${editingUser.id}` : '/api/admin/users';
-    const method = editingUser ? 'PUT' : 'POST';
-    
-    const res = await fetch(url, {
-      method,
-      headers: { 
-        'Content-Type': 'application/json',
-        'X-User-Id': currentUser?.id?.toString() || ''
-      },
-      body: JSON.stringify({ 
-        username, 
-        password: password || undefined, 
-        full_name: fullName, 
-        email, 
-        phone, 
-        role_id: parseInt(roleId),
-        is_active: editingUser ? editingUser.is_active : 1,
-        subscription_end: editingUser ? editingUser.subscription_end : undefined
-      })
-    });
-    
-    const data = await res.json();
-    if (data.status === 'error') {
-      alert(data.message);
-    } else {
-      resetForm();
-      fetchUsers();
-    }
-  };
-
-  const resetForm = () => {
-    setUsername('');
-    setPassword('');
-    setFullName('');
-    setEmail('');
-    setPhone('');
-    setRoleId(roles[0]?.id.toString() || '');
-    setEditingUser(null);
-  };
-
-  const deleteUser = async (id: number) => {
-    if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return;
-    await fetch(`/api/admin/users/${id}`, { 
-      method: 'DELETE',
-      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
-    });
-    fetchUsers();
-  };
-
-  const toggleStatus = async (user: any) => {
-    await fetch(`/api/admin/users/${user.id}`, {
-      method: 'PUT',
-      headers: { 
-        'Content-Type': 'application/json',
-        'X-User-Id': currentUser?.id?.toString() || ''
-      },
-      body: JSON.stringify({ 
-        ...user,
-        is_active: user.is_active === 1 ? 0 : 1
-      })
-    });
-    fetchUsers();
-  };
-
-  const startEdit = (user: any) => {
-    setEditingUser(user);
-    setUsername(user.username);
-    setFullName(user.full_name);
-    setEmail(user.email || '');
-    setPhone(user.phone || '');
-    setRoleId(user.role_id.toString());
-    setPassword('');
-  };
-
-  const getSubscriptionStatus = (endDate: string) => {
-    if (!endDate) return { label: 'غير محدد', color: 'text-slate-400' };
-    const today = new Date();
-    const end = new Date(endDate);
-    const diffTime = end.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) return { label: 'منتهي', color: 'text-rose-500 font-bold' };
-    if (diffDays <= 7) return { label: `ينتهي خلال ${diffDays} أيام`, color: 'text-amber-500 font-bold' };
-    return { label: `نشط (${diffDays} يوم)`, color: 'text-emerald-500' };
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 dark:text-white">
-          <UserPlus size={20} className="text-cyan-500" />
-          {editingUser ? 'تعديل بيانات المستخدم' : 'إضافة مستخدم جديد'}
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="الاسم الكامل" className="input-field" />
-          <input value={username} onChange={e => setUsername(e.target.value)} placeholder="اسم المستخدم" className="input-field" disabled={!!editingUser} />
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder={editingUser ? "كلمة المرور (اتركها فارغة لعدم التغيير)" : "كلمة المرور"} className="input-field" />
-          <input value={email} onChange={e => setEmail(e.target.value)} placeholder="البريد الإلكتروني" className="input-field" />
-          <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="رقم الجوال" className="input-field" />
-          <select value={roleId} onChange={e => setRoleId(e.target.value)} className="input-field">
-            {roles.map(r => (
-              <option key={r.id} value={r.id}>{r.role_name === 'super_admin' ? 'مدير عام' : r.role_name === 'admin' ? 'مدير نظام' : 'مستخدم عادي'}</option>
-            ))}
-          </select>
-          <div className="lg:col-span-3 flex gap-2">
-            <button onClick={handleSubmit} className="flex-1 btn-primary flex items-center justify-center gap-2">
-              <Save size={18} /> {editingUser ? 'تحديث البيانات' : 'حفظ المستخدم'}
-            </button>
-            {editingUser && (
-              <button onClick={resetForm} className="btn-secondary">إلغاء</button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="table-container">
-        <table className="w-full text-right">
-          <thead>
-            <tr>
-              <th>الاسم</th>
-              <th>بيانات الاتصال</th>
-              <th>الصلاحية</th>
-              <th>الاشتراك</th>
-              <th>الحالة</th>
-              <th className="text-center">الإجراءات</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-            {loading ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400"><Loader2 className="animate-spin mx-auto" /></td></tr>
-            ) : users.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400">لا يوجد مستخدمين مسجلين</td></tr>
-            ) : users.map((u: any) => {
-              const sub = getSubscriptionStatus(u.subscription_end);
-              return (
-                <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-slate-900 dark:text-white">{u.full_name}</div>
-                    <div className="text-xs text-slate-500">@{u.username}</div>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="text-slate-600 dark:text-slate-400">{u.email || '-'}</div>
-                    <div className="text-slate-500 text-xs">{u.phone || '-'}</div>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${u.role_name === 'admin' || u.role_name === 'super_admin' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
-                      {u.role_name === 'super_admin' ? 'مدير عام' : u.role_name === 'admin' ? 'مدير نظام' : 'مستخدم عادي'}
-                    </span>
-                  </td>
-                  <td className={`px-6 py-4 text-sm ${sub.color}`}>
-                    {sub.label}
-                    <div className="text-[10px] opacity-70">{u.subscription_end || '-'}</div>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <button 
-                      onClick={() => toggleStatus(u)}
-                      className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${u.is_active === 1 ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                    >
-                      {u.is_active === 1 ? 'نشط' : 'معطل'}
-                    </button>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <button onClick={() => startEdit(u)} className="p-2 text-cyan-500 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 rounded-xl transition-colors">
-                        <Edit2 size={18} />
-                      </button>
-                      {u.username !== '1095972897' && (
-                        <button onClick={() => deleteUser(u.id)} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-colors">
-                          <Trash2 size={18} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 function ExpensesPage({ currentUser }: { currentUser: any }) {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [title, setTitle] = useState('');
@@ -1057,89 +825,21 @@ function ExpensesPage({ currentUser }: { currentUser: any }) {
   );
 }
 
-function ReportsPage({ currentUser }: { currentUser: any }) {
-  const [reportData, setReportData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchReport = async () => {
-    const res = await fetch('/api/admin/reports', {
-      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
-    });
-    const data = await res.json();
-    setReportData(data);
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchReport(); }, []);
-
-  if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-cyan-500" /></div>;
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-          <div className="text-slate-500 text-sm mb-1">المستخدمين الجدد (هذا الشهر)</div>
-          <div className="text-3xl font-bold text-cyan-500">{reportData.newUsersCount}</div>
-        </div>
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-          <div className="text-slate-500 text-sm mb-1">الاشتراكات النشطة</div>
-          <div className="text-3xl font-bold text-emerald-500">{reportData.activeSubscriptions}</div>
-        </div>
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-          <div className="text-slate-500 text-sm mb-1">الاشتراكات المنتهية</div>
-          <div className="text-3xl font-bold text-rose-500">{reportData.expiredSubscriptions}</div>
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-        <h3 className="text-lg font-bold mb-4 dark:text-white">توزيع الصلاحيات</h3>
-        <div className="space-y-4">
-          {reportData.roleDistribution.map((rd: any) => (
-            <div key={rd.role_name} className="flex items-center justify-between">
-              <span className="text-slate-600 dark:text-slate-400">{rd.role_name === 'super_admin' ? 'مدير عام' : rd.role_name === 'admin' ? 'مدير نظام' : 'مستخدم عادي'}</span>
-              <div className="flex-1 mx-4 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-cyan-500" 
-                  style={{ width: `${(rd.count / reportData.totalUsers) * 100}%` }}
-                />
-              </div>
-              <span className="font-bold dark:text-white">{rd.count}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-        <h3 className="text-lg font-bold mb-4 dark:text-white">أحدث النشاطات</h3>
-        <div className="space-y-3">
-          {reportData.recentLogs.map((log: any) => (
-            <div key={log.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-              <div>
-                <div className="text-sm font-medium dark:text-white">{log.action}</div>
-                <div className="text-xs text-slate-500">{log.details}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs font-medium text-cyan-500">{log.user_name || 'النظام'}</div>
-                <div className="text-[10px] text-slate-400">{new Date(log.created_at).toLocaleString('ar-SA')}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // --- Main App with Login ---
 
 export default function App() {
-  const [isLoggedIn, setLoggedIn] = useState(false);
+  const [isLoggedIn, setLoggedIn] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>({
+    id: 'admin_default',
+    full_name: 'مدير النظام',
+    email: 'admin@7ulul.com',
+    role: 'super_admin'
+  });
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isDarkMode, setDarkMode] = useState(() => {
@@ -1149,57 +849,11 @@ export default function App() {
     }
     return false;
   });
-  const [unreadCount, setUnreadCount] = useState(0);
   const [refreshCounter, setRefreshCounter] = useState(0);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setLoggedIn(true);
-        setCurrentUser({
-          id: user.uid,
-          full_name: user.displayName,
-          email: user.email,
-          role: 'admin' // Default role
-        });
-      } else {
-        setLoggedIn(false);
-        setCurrentUser(null);
-      }
-      setIsLoadingAuth(false);
-    });
-    return () => unsubscribe();
+    // Auth system removed
   }, []);
-
-  const handleLogin = async () => {
-    if (isLoggingIn) return;
-    setLoginError(null);
-    setIsLoggingIn(true);
-    try {
-      await signInWithGoogle();
-    } catch (error: any) {
-      console.error('Login Error:', error);
-      if (error.code === 'auth/popup-blocked') {
-        setLoginError('تم حظر النافذة المنبثقة. يرجى السماح بالمنبثقات في متصفحك أو فتح التطبيق في نافذة جديدة.');
-      } else if (error.code === 'auth/cancelled-popup-request') {
-        setLoginError('تم إلغاء طلب تسجيل الدخول السابق. يرجى المحاولة مرة أخرى.');
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        setLoginError('تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية.');
-      } else {
-        setLoginError('حدث خطأ أثناء تسجيل الدخول. يرجى المحاولة مرة أخرى.');
-      }
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Logout Error:', error);
-    }
-  };
 
   useEffect(() => {
     if (isDarkMode) {
@@ -1218,44 +872,6 @@ export default function App() {
     };
     return fetch(url, { ...options, headers });
   };
-
-  useEffect(() => {
-    if (isLoggedIn && currentUser) {
-      // Fetch initial unread count
-      const fetchUnread = async () => {
-        const res = await secureFetch('/api/stats');
-        const data = await res.json();
-        setUnreadCount(data.unreadMessages);
-      };
-      fetchUnread();
-
-      // Setup WebSocket
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${window.location.host}`);
-      
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: 'auth', userId: currentUser.id }));
-      };
-
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'new_message') {
-          if (activeTab !== 'messages') {
-            setUnreadCount(prev => prev + 1);
-          }
-        } else if (data.type === 'notification') {
-          // You could use a toast library here, but we'll use a simple alert for now
-          // or better, a custom notification state
-          alert(data.message);
-          if (activeTab === 'file_analysis' || activeTab === 'clients') {
-            setRefreshCounter(prev => prev + 1);
-          }
-        }
-      };
-
-      return () => ws.close();
-    }
-  }, [isLoggedIn, currentUser, activeTab]);
 
   useEffect(() => {
     const handleNavigate = (e: any) => {
@@ -1277,26 +893,12 @@ export default function App() {
         return <SponsorsPage currentUser={currentUser} refreshCounter={refreshCounter} />;
       case 'accounting':
         return <AccountingPage currentUser={currentUser} refreshCounter={refreshCounter} />;
-      case 'messages':
-        return <MessagingPage currentUser={currentUser} refreshCounter={refreshCounter} />;
-      case 'admin_users':
-        return <UsersManagementPage currentUser={currentUser} refreshCounter={refreshCounter} />;
-      case 'admin_reports':
-        return <ReportsPage currentUser={currentUser} />;
-      case 'admin_settings':
-        return <SystemSettings currentUser={currentUser} refreshCounter={refreshCounter} />;
-      case 'admin_logs':
-        return <ActivityLogs currentUser={currentUser} refreshCounter={refreshCounter} />;
-      case 'permissions':
-        return <UsersManagementPage currentUser={currentUser} refreshCounter={refreshCounter} />;
       case 'tasks':
         return <TasksPage currentUser={currentUser} refreshCounter={refreshCounter} />;
       case 'file_analysis':
         return <FileManagementPage currentUser={currentUser} refreshCounter={refreshCounter} />;
       case 'agents':
         return <AgentsPage />;
-      case 'ai_advisor':
-        return <AIAdvisor currentUser={currentUser} />;
       case 'clients':
         return <ClientsPage currentUser={currentUser} refreshCounter={refreshCounter} />;
       case 'brokers':
@@ -1341,89 +943,8 @@ export default function App() {
     );
   }
 
-  if (!isLoggedIn) {
-    const isIframe = typeof window !== 'undefined' && window.self !== window.top;
-
-    if (!showLogin) {
-      return <LandingPage onLoginClick={() => setShowLogin(true)} />;
-    }
-
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6 font-sans transition-colors duration-300">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] shadow-2xl shadow-slate-200 dark:shadow-none border border-slate-100 dark:border-slate-800 relative"
-        >
-          <div className="text-center mb-10">
-            <button 
-              onClick={() => setShowLogin(false)}
-              className="absolute top-8 right-8 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 transition-colors"
-            >
-              <X size={20} />
-            </button>
-            <div className="mb-6 flex justify-center">
-              <Logo className="w-24 h-24" />
-            </div>
-            <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">حلول</h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-2">مرحباً بك، يرجى تسجيل الدخول للمتابعة</p>
-            {isIframe && (
-              <p className="text-amber-500 text-xs font-bold mt-2 flex items-center justify-center gap-1">
-                <AlertCircle size={12} />
-                تنبيه: إذا واجهت مشكلة في تسجيل الدخول، افتح التطبيق في نافذة جديدة.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            {loginError && (
-              <div className="p-4 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-2xl flex flex-col gap-3 text-rose-600 dark:text-rose-400 text-sm font-medium">
-                <div className="flex items-center gap-3">
-                  <AlertCircle size={18} className="shrink-0" />
-                  <p>{loginError}</p>
-                </div>
-                {loginError.includes('حظر') && (
-                  <button 
-                    onClick={() => window.open(window.location.href, '_blank')}
-                    className="py-2 px-4 bg-rose-600 text-white rounded-xl font-bold text-xs hover:bg-rose-700 transition-all self-start flex items-center gap-2"
-                  >
-                    <ExternalLink size={14} />
-                    فتح التطبيق في نافذة مستقلة
-                  </button>
-                )}
-              </div>
-            )}
-            <button 
-              onClick={handleLogin}
-              disabled={isLoggingIn}
-              className="w-full py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl font-bold text-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-3 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoggingIn ? (
-                <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
-              ) : (
-                <>
-                  <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
-                  تسجيل الدخول بواسطة جوجل
-                </>
-              )}
-            </button>
-            <button 
-              onClick={() => setShowLogin(false)}
-              className="w-full py-3 text-slate-400 dark:text-slate-500 font-bold text-sm hover:text-slate-600 dark:hover:text-slate-300 transition-all"
-            >
-              العودة للرئيسية
-            </button>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
-
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
-    if (tabId === 'messages') {
-      setUnreadCount(0);
-    }
   };
 
   return (
@@ -1512,11 +1033,6 @@ export default function App() {
                   {section.title}
                 </motion.span>
               )}
-              {section.id === 'messages' && (isSidebarOpen || (typeof window !== 'undefined' && window.innerWidth < 1024)) && unreadCount > 0 && (
-                <div className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                  {unreadCount}
-                </div>
-              )}
             </button>
           ))}
         </nav>
@@ -1539,18 +1055,6 @@ export default function App() {
               </div>
             )}
           </div>
-          <button 
-            onClick={() => {
-              setLoggedIn(false);
-              setCurrentUser(null);
-            }}
-            className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-colors ${
-              isDarkMode ? 'text-rose-400 hover:bg-rose-900/20' : 'text-rose-600 hover:bg-rose-50'
-            }`}
-          >
-            <LogOut size={20} />
-            {(isSidebarOpen || (typeof window !== 'undefined' && window.innerWidth < 1024)) && <span className="text-sm font-medium">تسجيل الخروج</span>}
-          </button>
         </div>
       </motion.aside>
 
@@ -1677,7 +1181,6 @@ export default function App() {
             </div>
           </div>
         </footer>
-        <AIChatbot currentUser={currentUser} />
       </main>
     </div>
   );

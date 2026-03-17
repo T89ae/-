@@ -21,15 +21,15 @@ import ConfirmModal from './ConfirmModal';
 
 interface Sale {
   id: number;
-  service_name: string;
-  sale_price: number;
+  service: string;
+  price: number;
   wholesale_price: number;
   net_profit: number;
   supplier_name: string;
   paid_amount: number;
   remaining_amount: number;
   date: string;
-  created_by: string;
+  client: string;
 }
 
 export default function SalesDebtsPage({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
@@ -48,11 +48,12 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
   });
 
   const [formData, setFormData] = useState({
-    service_name: '',
-    sale_price: '',
+    service: '',
+    price: '',
     wholesale_price: '',
     supplier_name: '',
-    paid_amount: ''
+    paid_amount: '',
+    client: ''
   });
 
   useEffect(() => {
@@ -73,9 +74,9 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
 
   const calculateStats = (saleList: Sale[]) => {
     const newStats = saleList.reduce((acc, sale) => {
-      acc.totalSales += sale.sale_price;
-      acc.totalProfit += sale.net_profit;
-      acc.totalDebts += sale.remaining_amount;
+      acc.totalSales += (sale.price || 0);
+      acc.totalProfit += (sale.net_profit || 0);
+      acc.totalDebts += (sale.remaining_amount || 0);
       return acc;
     }, { totalSales: 0, totalProfit: 0, totalDebts: 0 });
     setStats(newStats);
@@ -93,18 +94,24 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
           'Content-Type': 'application/json',
           'x-user-id': currentUser.id.toString()
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          price: parseFloat(formData.price),
+          wholesale_price: parseFloat(formData.wholesale_price),
+          paid_amount: parseFloat(formData.paid_amount)
+        })
       });
 
       if (response.ok) {
         setShowForm(false);
         setEditingSale(null);
         setFormData({
-          service_name: '',
-          sale_price: '',
+          service: '',
+          price: '',
           wholesale_price: '',
           supplier_name: '',
-          paid_amount: ''
+          paid_amount: '',
+          client: ''
         });
         fetchSales();
       }
@@ -129,11 +136,12 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
   };
 
   const filteredSales = sales.filter(sale => {
-    const matchesSearch = (sale.service_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
-                         (sale.supplier_name?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    const matchesSearch = (sale.service?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+                         (sale.supplier_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                         (sale.client?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesFilter = filterStatus === 'all' || 
-                         (filterStatus === 'debt' && sale.remaining_amount > 0) ||
-                         (filterStatus === 'paid' && sale.remaining_amount === 0);
+                         (filterStatus === 'debt' && (sale.remaining_amount || 0) > 0) ||
+                         (filterStatus === 'paid' && (sale.remaining_amount || 0) === 0);
     return matchesSearch && matchesFilter;
   });
 
@@ -183,7 +191,7 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
             <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               type="text"
-              placeholder="ابحث عن خدمة أو مورد..."
+              placeholder="ابحث عن خدمة، مورد، أو عميل..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pr-12 pl-4 py-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all dark:text-white"
@@ -216,6 +224,7 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
               <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
                 <th className="px-6 py-4 text-sm font-bold text-slate-400">رقم</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-400">الخدمة</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-400">العميل</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-400">المورد</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-400">سعر البيع</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-400">سعر الجملة</th>
@@ -233,18 +242,19 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
                 >
                   <td className="px-6 py-4 text-sm font-bold text-slate-400">#{index + 1}</td>
                   <td className="px-6 py-4">
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">{sale.service_name}</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{sale.service}</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">{sale.date ? new Date(sale.date).toLocaleString('ar-SA') : '---'}</p>
                   </td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{sale.client}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{sale.supplier_name}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">{sale.sale_price?.toLocaleString() || 0} ر.س</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">{sale.price?.toLocaleString() || 0} ر.س</td>
                   <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{sale.wholesale_price?.toLocaleString() || 0} ر.س</td>
                   <td className="px-6 py-4">
                     <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">+{sale.net_profit?.toLocaleString() || 0} ر.س</span>
                   </td>
                   <td className="px-6 py-4 text-sm text-emerald-600 dark:text-emerald-400">{sale.paid_amount?.toLocaleString() || 0} ر.س</td>
                   <td className="px-6 py-4">
-                    {sale.remaining_amount > 0 ? (
+                    {(sale.remaining_amount || 0) > 0 ? (
                       <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{sale.remaining_amount?.toLocaleString() || 0} ر.س</span>
                     ) : (
                       <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded text-[10px] font-bold">مدفوع</span>
@@ -256,11 +266,12 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
                         onClick={() => {
                           setEditingSale(sale);
                           setFormData({
-                            service_name: sale.service_name,
-                            sale_price: sale.sale_price.toString(),
-                            wholesale_price: sale.wholesale_price.toString(),
-                            supplier_name: sale.supplier_name,
-                            paid_amount: sale.paid_amount.toString()
+                            service: sale.service || '',
+                            price: (sale.price || 0).toString(),
+                            wholesale_price: (sale.wholesale_price || 0).toString(),
+                            supplier_name: sale.supplier_name || '',
+                            paid_amount: (sale.paid_amount || 0).toString(),
+                            client: sale.client || ''
                           });
                           setShowForm(true);
                         }}
@@ -282,7 +293,7 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
               ))}
               {filteredSales.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={10} className="px-6 py-12 text-center text-slate-400">
                     لا توجد مبيعات مطابقة للبحث
                   </td>
                 </tr>
@@ -328,12 +339,26 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
                     <input 
                       required
                       type="text"
-                      value={formData.service_name}
-                      onChange={e => setFormData({...formData, service_name: e.target.value})}
+                      value={formData.service}
+                      onChange={e => setFormData({...formData, service: e.target.value})}
                       className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
                       placeholder="مثلاً: تأشيرة زيارة"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mr-1">اسم العميل</label>
+                    <input 
+                      required
+                      type="text"
+                      value={formData.client}
+                      onChange={e => setFormData({...formData, client: e.target.value})}
+                      className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
+                      placeholder="اسم العميل"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mr-1">اسم المورد</label>
                     <input 
@@ -345,9 +370,6 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
                       placeholder="اسم المورد"
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mr-1">سعر البيع</label>
                     <div className="relative">
@@ -355,13 +377,16 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
                       <input 
                         required
                         type="number"
-                        value={formData.sale_price}
-                        onChange={e => setFormData({...formData, sale_price: e.target.value})}
-                        className="w-full pr-12 pl-4 py-4 bg-white/5 border border-white/10 rounded-2xl outline-none focus:ring-2 focus:ring-[#00BFFF]/20 transition-all text-white"
+                        value={formData.price}
+                        onChange={e => setFormData({...formData, price: e.target.value})}
+                        className="w-full pr-12 pl-4 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
                         placeholder="0.00"
                       />
                     </div>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mr-1">سعر الجملة</label>
                     <div className="relative">
@@ -393,16 +418,16 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="p-4 bg-[#00BFFF]/10 rounded-2xl border border-[#00BFFF]/20">
-                    <p className="text-xs font-bold text-[#00BFFF] mb-1">صافي الربح المتوقع</p>
-                    <p className="text-xl font-black text-white">
-                      {(parseFloat(formData.sale_price) || 0) - (parseFloat(formData.wholesale_price) || 0)} ر.س
+                  <div className="p-4 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+                    <p className="text-xs font-bold text-emerald-500 mb-1">صافي الربح المتوقع</p>
+                    <p className="text-xl font-black dark:text-white">
+                      {(parseFloat(formData.price) || 0) - (parseFloat(formData.wholesale_price) || 0)} ر.س
                     </p>
                   </div>
                   <div className="p-4 bg-rose-500/10 rounded-2xl border border-rose-500/20">
                     <p className="text-xs font-bold text-rose-500 mb-1">المبلغ المتبقي (دين)</p>
-                    <p className="text-xl font-black text-white">
-                      {(parseFloat(formData.sale_price) || 0) - (parseFloat(formData.paid_amount) || 0)} ر.س
+                    <p className="text-xl font-black dark:text-white">
+                      {(parseFloat(formData.price) || 0) - (parseFloat(formData.paid_amount) || 0)} ر.س
                     </p>
                   </div>
                 </div>
@@ -417,7 +442,7 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
                   <button 
                     type="button"
                     onClick={() => setShowForm(false)}
-                    className="flex-1 py-4 bg-white/5 text-slate-300 rounded-2xl font-bold text-lg hover:bg-white/10 transition-all border border-white/5"
+                    className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-bold text-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
                   >
                     إلغاء
                   </button>

@@ -33,9 +33,7 @@ db.exec(`
     wholesale_price REAL,
     net_profit REAL,
     paid_amount REAL,
-    remaining_amount REAL,
-    created_by INTEGER,
-    FOREIGN KEY (created_by) REFERENCES users(id)
+    remaining_amount REAL
   );
 
   CREATE TABLE IF NOT EXISTS tasks (
@@ -137,85 +135,6 @@ db.exec(`
     FOREIGN KEY (sponsor_id) REFERENCES sponsors(id)
   );
 
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE,
-    password TEXT,
-    full_name TEXT,
-    email TEXT,
-    phone TEXT,
-    role_id INTEGER,
-    is_active INTEGER DEFAULT 1,
-    subscription_start TEXT,
-    subscription_end TEXT,
-    FOREIGN KEY (role_id) REFERENCES roles(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    action TEXT,
-    details TEXT,
-    ip_address TEXT,
-    created_at TEXT,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS roles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    role_name TEXT UNIQUE
-  );
-
-  CREATE TABLE IF NOT EXISTS permissions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    permission_key TEXT UNIQUE
-  );
-
-  CREATE TABLE IF NOT EXISTS role_permissions (
-    role_id INTEGER,
-    permission_id INTEGER,
-    PRIMARY KEY (role_id, permission_id),
-    FOREIGN KEY (role_id) REFERENCES roles(id),
-    FOREIGN KEY (permission_id) REFERENCES permissions(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS attendance (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    date TEXT,
-    check_in TEXT,
-    check_out TEXT,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS conversations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user1_id INTEGER,
-    user2_id INTEGER,
-    last_message_at TEXT,
-    FOREIGN KEY (user1_id) REFERENCES users(id),
-    FOREIGN KEY (user2_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    conversation_id INTEGER,
-    sender_id INTEGER,
-    content TEXT,
-    type TEXT DEFAULT 'text',
-    file_url TEXT,
-    file_name TEXT,
-    created_at TEXT,
-    is_read INTEGER DEFAULT 0,
-    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
-    FOREIGN KEY (sender_id) REFERENCES users(id)
-  );
-
   CREATE TABLE IF NOT EXISTS debts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     type TEXT,
@@ -272,6 +191,9 @@ if (!expenseCols.some(col => col.name === 'category_id')) {
 if (!expenseCols.some(col => col.name === 'date')) {
   db.exec("ALTER TABLE expenses ADD COLUMN date TEXT");
 }
+if (!expenseCols.some(col => col.name === 'sale_id')) {
+  db.exec("ALTER TABLE expenses ADD COLUMN sale_id INTEGER REFERENCES sales(id) ON DELETE CASCADE");
+}
 
 // Migration: Add new columns to sales
 const salesCols = db.prepare("PRAGMA table_info(sales)").all() as any[];
@@ -293,34 +215,6 @@ if (!salesCols.some(col => col.name === 'paid_amount')) {
 if (!salesCols.some(col => col.name === 'remaining_amount')) {
   db.exec("ALTER TABLE sales ADD COLUMN remaining_amount REAL");
 }
-if (!salesCols.some(col => col.name === 'created_by')) {
-  db.exec("ALTER TABLE sales ADD COLUMN created_by INTEGER REFERENCES users(id)");
-}
-
-// Migration: Check if users table has role_id column
-const tableInfo = db.prepare("PRAGMA table_info(users)").all() as any[];
-const hasRoleId = tableInfo.some(col => col.name === 'role_id');
-if (tableInfo.length > 0 && !hasRoleId) {
-  db.exec("DROP TABLE users");
-}
-
-// Migration: Add is_active to users
-const userCols = db.prepare("PRAGMA table_info(users)").all() as any[];
-if (!userCols.some(col => col.name === 'is_active')) {
-  db.exec("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1");
-}
-if (!userCols.some(col => col.name === 'email')) {
-  db.exec("ALTER TABLE users ADD COLUMN email TEXT");
-}
-if (!userCols.some(col => col.name === 'phone')) {
-  db.exec("ALTER TABLE users ADD COLUMN phone TEXT");
-}
-if (!userCols.some(col => col.name === 'subscription_start')) {
-  db.exec("ALTER TABLE users ADD COLUMN subscription_start TEXT");
-}
-if (!userCols.some(col => col.name === 'subscription_end')) {
-  db.exec("ALTER TABLE users ADD COLUMN subscription_end TEXT");
-}
 
 // Migration: Add client_id to files
 const fileCols = db.prepare("PRAGMA table_info(files)").all() as any[];
@@ -337,50 +231,12 @@ if (!clientCols.some(col => col.name === 'category')) {
   db.exec("ALTER TABLE clients ADD COLUMN category TEXT");
 }
 
-// Initialize default roles and admin
+// Initialize default categories
 const initDb = db.transaction(() => {
-  db.prepare("INSERT OR IGNORE INTO roles (role_name) VALUES ('super_admin')").run();
-  db.prepare("INSERT OR IGNORE INTO roles (role_name) VALUES ('admin')").run();
-  db.prepare("INSERT OR IGNORE INTO roles (role_name) VALUES ('user')").run();
-
   const categories = ['إيجار', 'رواتب', 'صيانة', 'فواتير', 'أخرى'];
   categories.forEach(cat => {
     db.prepare("INSERT OR IGNORE INTO expense_categories (name) VALUES (?)").run(cat);
   });
-
-  // Default settings
-  const defaultSettings = [
-    { key: 'site_name', value: 'حلول' },
-    { key: 'site_logo', value: '' },
-    { key: 'official_email', value: 'Torkiali054@gmail.com' },
-    { key: 'allow_registration', value: '0' },
-    { key: 'smtp_host', value: '' },
-    { key: 'smtp_port', value: '' },
-    { key: 'smtp_user', value: '' },
-    { key: 'smtp_pass', value: '' }
-  ];
-  defaultSettings.forEach(s => {
-    db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)").run(s.key, s.value);
-  });
-
-  const superAdminRole = db.prepare("SELECT id FROM roles WHERE role_name = 'super_admin'").get() as any;
-
-  const adminExists = db.prepare('SELECT * FROM users WHERE username = ?').get('1095972897');
-  if (!adminExists) {
-    db.prepare('INSERT INTO users (username, password, full_name, role_id) VALUES (?, ?, ?, ?)').run(
-      '1095972897',
-      'Tt@112233',
-      'تركي النجعي',
-      superAdminRole.id
-    );
-  } else {
-    // Update existing admin to Super Admin and change name
-    db.prepare('UPDATE users SET full_name = ?, role_id = ? WHERE username = ?').run(
-      'تركي النجعي',
-      superAdminRole.id,
-      '1095972897'
-    );
-  }
 });
 
 initDb();
