@@ -35,7 +35,7 @@ interface User {
   role: string;
 }
 
-export default function MessagingPage({ currentUser }: { currentUser: any }) {
+export default function MessagingPage({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -75,7 +75,7 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
 
     setSocket(ws);
     return () => ws.close();
-  }, [currentUser.id, selectedConv?.id]);
+  }, [currentUser.id, selectedConv?.id, refreshCounter]);
 
   useEffect(() => {
     scrollToBottom();
@@ -86,21 +86,27 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
   };
 
   const fetchConversations = async () => {
-    const res = await fetch(`/api/conversations/${currentUser.id}`);
+    const res = await fetch(`/api/conversations/${currentUser.id}`, {
+      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+    });
     const data = await res.json();
     setConversations(data);
     setLoading(false);
   };
 
   const fetchUsers = async () => {
-    const res = await fetch('/api/users');
+    const res = await fetch('/api/users', {
+      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+    });
     const data = await res.json();
     setUsers(data.filter((u: User) => u.id !== currentUser.id));
   };
 
   const fetchMessages = async (convId: number) => {
     setLoadingMessages(true);
-    const res = await fetch(`/api/messages/${convId}?userId=${currentUser.id}`);
+    const res = await fetch(`/api/messages/${convId}?userId=${currentUser.id}`, {
+      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+    });
     const data = await res.json();
     setMessages(data);
     setLoadingMessages(false);
@@ -108,7 +114,9 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
   };
 
   const markAsRead = async (convId: number) => {
-    await fetch(`/api/messages/${convId}?userId=${currentUser.id}`);
+    await fetch(`/api/messages/${convId}?userId=${currentUser.id}`, {
+      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+    });
   };
 
   const handleSendMessage = async (e?: React.FormEvent, file?: File) => {
@@ -129,6 +137,7 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
 
     const res = await fetch('/api/messages', {
       method: 'POST',
+      headers: { 'X-User-Id': currentUser?.id?.toString() || '' },
       body: formData
     });
 
@@ -162,29 +171,29 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
   );
 
   return (
-    <div className="flex h-[calc(100vh-120px)] bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+    <div className="flex h-[calc(100vh-120px)] bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
       {/* Sidebar */}
-      <div className="w-80 border-l border-slate-100 flex flex-col">
-        <div className="p-4 border-b border-slate-100">
+      <div className="w-80 border-l border-slate-100 dark:border-slate-800 flex flex-col">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800">
           <div className="relative">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               type="text" 
               placeholder="بحث في المحادثات..." 
-              className="w-full pr-10 pl-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+              className="w-full pr-10 pl-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 dark:text-white"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
           </div>
           <button 
             onClick={() => setShowUserList(!showUserList)}
-            className="w-full mt-4 bg-emerald-600 text-white py-2 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors"
+            className="w-full mt-4 btn-primary flex items-center justify-center gap-2"
           >
             <MessageSquare size={18} /> محادثة جديدة
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
           {showUserList ? (
             <div className="p-2 space-y-1">
               <h4 className="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">المستخدمين</h4>
@@ -192,14 +201,14 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
                 <button 
                   key={user.id}
                   onClick={() => startNewConversation(user)}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors text-right"
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-right"
                 >
-                  <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500">
+                  <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400">
                     <User size={20} />
                   </div>
                   <div>
-                    <div className="font-bold text-slate-900">{user.full_name}</div>
-                    <div className="text-xs text-slate-500">{user.role === 'admin' ? 'مدير' : 'موظف'}</div>
+                    <div className="font-bold text-slate-900 dark:text-white">{user.full_name}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{user.role === 'super_admin' ? 'مدير عام' : user.role === 'admin' ? 'مدير' : 'موظف'}</div>
                   </div>
                 </button>
               ))}
@@ -217,14 +226,14 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
                     setSelectedConv(conv);
                     fetchMessages(conv.id);
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl transition-colors text-right ${selectedConv?.id === conv.id ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}
+                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl transition-colors text-right ${selectedConv?.id === conv.id ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
-                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 font-bold">
+                  <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold">
                     {conv.other_user_name[0]}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start">
-                      <div className="font-bold text-slate-900 truncate">{conv.other_user_name}</div>
+                      <div className="font-bold text-slate-900 dark:text-white truncate">{conv.other_user_name}</div>
                       {conv.last_message_at && (
                         <span className="text-[10px] text-slate-400">
                           {format(new Date(conv.last_message_at), 'HH:mm', { locale: ar })}
@@ -232,7 +241,7 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
                       )}
                     </div>
                     <div className="flex justify-between items-center mt-0.5">
-                      <div className="text-xs text-slate-500 truncate">{conv.last_message || 'محادثة جديدة'}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{conv.last_message || 'محادثة جديدة'}</div>
                       {conv.unread_count > 0 && (
                         <span className="bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                           {conv.unread_count}
@@ -248,18 +257,18 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 flex flex-col bg-slate-50">
+      <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-950">
         {selectedConv ? (
           <>
             {/* Header */}
-            <div className="p-4 bg-white border-b border-slate-100 flex items-center justify-between">
+            <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 font-bold">
+                <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold">
                   {selectedConv.other_user_name[0]}
                 </div>
                 <div>
-                  <div className="font-bold text-slate-900">{selectedConv.other_user_name}</div>
-                  <div className="text-xs text-emerald-600 flex items-center gap-1">
+                  <div className="font-bold text-slate-900 dark:text-white">{selectedConv.other_user_name}</div>
+                  <div className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                     <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div> متصل الآن
                   </div>
                 </div>
@@ -267,7 +276,7 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
               {loadingMessages ? (
                 <div className="flex justify-center p-8"><Loader2 className="animate-spin text-emerald-500" /></div>
               ) : (
@@ -275,15 +284,15 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
                   const isMe = msg.sender_id === currentUser.id;
                   return (
                     <div key={msg.id} className={`flex ${isMe ? 'justify-start' : 'justify-end'}`}>
-                      <div className={`max-w-[70%] rounded-2xl p-3 shadow-sm ${isMe ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-white text-slate-900 rounded-tl-none'}`}>
+                      <div className={`max-w-[70%] rounded-2xl p-3 shadow-sm ${isMe ? 'bg-emerald-600 text-white rounded-tr-none' : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-tl-none border border-slate-100 dark:border-slate-800'}`}>
                         {msg.type === 'file' ? (
                           <a 
                             href={msg.file_url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className={`flex items-center gap-3 p-2 rounded-xl ${isMe ? 'bg-emerald-700' : 'bg-slate-50'}`}
+                            className={`flex items-center gap-3 p-2 rounded-xl ${isMe ? 'bg-emerald-700' : 'bg-slate-50 dark:bg-slate-800'}`}
                           >
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isMe ? 'bg-emerald-600' : 'bg-white border border-slate-100'}`}>
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isMe ? 'bg-emerald-600' : 'bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-700'}`}>
                               {msg.file_name?.match(/\.(jpg|jpeg|png|gif)$/i) ? <ImageIcon size={20} /> : <FileText size={20} />}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -307,7 +316,7 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
             </div>
 
             {/* Input */}
-            <div className="p-4 bg-white border-t border-slate-100">
+            <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
               <form onSubmit={handleSendMessage} className="flex items-center gap-2">
                 <input 
                   type="file" 
@@ -321,21 +330,21 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
                 <button 
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-2 text-slate-400 hover:bg-slate-50 rounded-xl transition-colors"
+                  className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors"
                 >
                   <Paperclip size={20} />
                 </button>
                 <input 
                   type="text" 
                   placeholder="اكتب رسالتك هنا..." 
-                  className="flex-1 px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  className="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 dark:text-white"
                   value={newMessage}
                   onChange={e => setNewMessage(e.target.value)}
                 />
                 <button 
                   type="submit"
                   disabled={!newMessage.trim()}
-                  className="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                  className="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-lg shadow-emerald-200 dark:shadow-none"
                 >
                   <Send size={20} />
                 </button>
@@ -344,10 +353,10 @@ export default function MessagingPage({ currentUser }: { currentUser: any }) {
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8">
-            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+            <div className="w-20 h-20 bg-slate-100 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4">
               <MessageSquare size={40} />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">مرحباً بك في نظام المراسلة</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">مرحباً بك في نظام المراسلة</h3>
             <p className="text-sm mt-2">اختر محادثة من القائمة الجانبية للبدء</p>
           </div>
         )}

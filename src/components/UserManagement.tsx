@@ -16,7 +16,7 @@ import {
 
 import ConfirmModal from './ConfirmModal';
 
-export default function UserManagement({ currentUser }: { currentUser: any }) {
+export default function UserManagement({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +58,7 @@ export default function UserManagement({ currentUser }: { currentUser: any }) {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [refreshCounter]);
 
   const openEditModal = (user: any) => {
     setEditingUser(user);
@@ -108,7 +108,11 @@ export default function UserManagement({ currentUser }: { currentUser: any }) {
         method: 'DELETE',
         headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
       });
-      if (res.ok) fetchData();
+      if (res.ok) {
+        setIsConfirmOpen(false);
+        setUserToDelete(null);
+        fetchData();
+      }
     } catch (error) {
       console.error('Error deleting user:', error);
     }
@@ -123,8 +127,8 @@ export default function UserManagement({ currentUser }: { currentUser: any }) {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black text-slate-900">إدارة المستخدمين</h2>
-          <p className="text-slate-500">التحكم في حسابات الموظفين والمديرين وصلاحياتهم</p>
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white">إدارة المستخدمين</h2>
+          <p className="text-slate-500 dark:text-slate-400">التحكم في حسابات الموظفين والمديرين وصلاحياتهم</p>
         </div>
         
         <div className="relative">
@@ -134,114 +138,112 @@ export default function UserManagement({ currentUser }: { currentUser: any }) {
             placeholder="بحث بالاسم أو رقم الهوية..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full md:w-80 pr-12 pl-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+            className="w-full md:w-80 pr-12 pl-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all dark:text-white"
           />
         </div>
       </div>
 
-      <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right">
-            <thead className="bg-slate-50/50 border-b border-slate-100">
+      <div className="table-container">
+        <table className="w-full text-right">
+          <thead>
+            <tr>
+              <th>المستخدم</th>
+              <th>رقم الهوية</th>
+              <th>الدور</th>
+              <th>الحالة</th>
+              <th className="text-center">الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+            {loading ? (
               <tr>
-                <th className="px-6 py-4 text-sm font-bold text-slate-600">المستخدم</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-600">رقم الهوية</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-600">الدور</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-600">الحالة</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-600 text-center">الإجراءات</th>
+                <td colSpan={5} className="px-6 py-20 text-center">
+                  <Loader2 className="animate-spin mx-auto text-emerald-500" size={32} />
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center">
-                    <Loader2 className="animate-spin mx-auto text-emerald-500" size={32} />
-                  </td>
-                </tr>
-              ) : filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center text-slate-400">
-                    لا يوجد مستخدمين مطابقين للبحث
-                  </td>
-                </tr>
-              ) : filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg ${
-                        user.role_name === 'super_admin' ? 'bg-rose-100 text-rose-600' : 
-                        user.role_name === 'admin' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {user.full_name.charAt(0)}
-                      </div>
-                      <span className="font-bold text-slate-900">{user.full_name}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600 font-mono">{user.username}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-lg text-xs font-bold ${
-                      user.role_name === 'super_admin' ? 'bg-rose-50 text-rose-600' : 
-                      user.role_name === 'admin' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-600'
+            ) : filteredUsers.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-20 text-center text-slate-400">
+                  لا يوجد مستخدمين مطابقين للبحث
+                </td>
+              </tr>
+            ) : filteredUsers.map((user) => (
+              <tr key={user.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg ${
+                      user.role_name === 'super_admin' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' : 
+                      user.role_name === 'admin' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
                     }`}>
-                      {user.role_name === 'super_admin' ? 'مدير عام' : 
-                       user.role_name === 'admin' ? 'مدير' : 'موظف'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      {user.is_active ? (
-                        <span className="flex items-center gap-1.5 text-emerald-600 text-xs font-bold">
-                          <CheckCircle2 size={14} /> نشط
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1.5 text-rose-600 text-xs font-bold">
-                          <XCircle size={14} /> معطل
-                        </span>
-                      )}
+                      {user.full_name.charAt(0)}
                     </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-2">
-                      <button 
-                        onClick={() => openEditModal(user)}
-                        className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-colors"
-                        title="تعديل"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(user.id)}
-                        className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
-                        title="حذف"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    <span className="font-bold text-slate-900 dark:text-white">{user.full_name}</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400 font-mono">{user.username}</td>
+                <td className="px-6 py-4">
+                  <span className={`px-3 py-1 rounded-lg text-xs font-bold ${
+                    user.role_name === 'super_admin' ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400' : 
+                    user.role_name === 'admin' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-slate-50 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400'
+                  }`}>
+                    {user.role_name === 'super_admin' ? 'مدير عام' : 
+                     user.role_name === 'admin' ? 'مدير' : 'موظف'}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2">
+                    {user.is_active ? (
+                      <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+                        <CheckCircle2 size={14} /> نشط
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400 text-xs font-bold">
+                        <XCircle size={14} /> معطل
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center justify-center gap-2">
+                    <button 
+                      onClick={() => openEditModal(user)}
+                      className="p-2 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-xl transition-colors"
+                      title="تعديل"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(user.id)}
+                      className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-colors"
+                      title="حذف"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden"
+              className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800"
             >
-              <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-emerald-100 text-emerald-600 rounded-2xl">
+                  <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl">
                     <UserPlus size={24} />
                   </div>
-                  <h3 className="text-xl font-black text-slate-900">تعديل بيانات المستخدم</h3>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white">تعديل بيانات المستخدم</h3>
                 </div>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white rounded-xl text-slate-400 transition-colors">
+                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-xl text-slate-400 transition-colors">
                   <XCircle size={24} />
                 </button>
               </div>
@@ -249,21 +251,21 @@ export default function UserManagement({ currentUser }: { currentUser: any }) {
               <div className="p-8 space-y-6">
                 <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700 mr-1">الاسم الكامل</label>
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mr-1">الاسم الكامل</label>
                     <input 
                       type="text"
                       value={fullName}
                       onChange={e => setFullName(e.target.value)}
-                      className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                      className="input-field"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700 mr-1">الدور / الصلاحية</label>
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mr-1">الدور / الصلاحية</label>
                     <select 
                       value={roleId}
                       onChange={e => setRoleId(e.target.value)}
-                      className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all appearance-none"
+                      className="input-field appearance-none"
                     >
                       {roles.map(role => (
                         <option key={role.id} value={role.id}>
@@ -275,7 +277,7 @@ export default function UserManagement({ currentUser }: { currentUser: any }) {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700 mr-1 flex items-center gap-2">
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mr-1 flex items-center gap-2">
                       <Key size={14} /> تغيير كلمة المرور (اختياري)
                     </label>
                     <input 
@@ -283,12 +285,12 @@ export default function UserManagement({ currentUser }: { currentUser: any }) {
                       placeholder="اتركه فارغاً لعدم التغيير"
                       value={password}
                       onChange={e => setPassword(e.target.value)}
-                      className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                      className="input-field"
                     />
                   </div>
 
-                  <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
-                    <span className="text-sm font-bold text-slate-700">حالة الحساب:</span>
+                  <div className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">حالة الحساب:</span>
                     <div className="flex items-center gap-6">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input 
@@ -297,7 +299,7 @@ export default function UserManagement({ currentUser }: { currentUser: any }) {
                           onChange={() => setIsActive(1)}
                           className="w-4 h-4 text-emerald-600"
                         />
-                        <span className="text-sm font-medium">نشط</span>
+                        <span className="text-sm font-medium dark:text-white">نشط</span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input 
@@ -306,7 +308,7 @@ export default function UserManagement({ currentUser }: { currentUser: any }) {
                           onChange={() => setIsActive(0)}
                           className="w-4 h-4 text-rose-600"
                         />
-                        <span className="text-sm font-medium">معطل</span>
+                        <span className="text-sm font-medium dark:text-white">معطل</span>
                       </label>
                     </div>
                   </div>
@@ -315,13 +317,13 @@ export default function UserManagement({ currentUser }: { currentUser: any }) {
                 <div className="flex gap-3 pt-4">
                   <button 
                     onClick={handleUpdate}
-                    className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
+                    className="flex-1 btn-primary"
                   >
                     حفظ التغييرات
                   </button>
                   <button 
                     onClick={() => setIsModalOpen(false)}
-                    className="px-8 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all"
+                    className="px-8 btn-secondary"
                   >
                     إلغاء
                   </button>

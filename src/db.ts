@@ -2,7 +2,14 @@ import Database from 'better-sqlite3';
 import path from 'path';
 
 const dbPath = path.resolve('thiqah.db');
-const db = new Database(dbPath);
+let db: any;
+try {
+  db = new Database(dbPath);
+  console.log('Database initialized successfully at', dbPath);
+} catch (err) {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
+}
 
 // Initialize tables
 db.exec(`
@@ -10,14 +17,101 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
     job TEXT,
-    sponsor TEXT
+    sponsor TEXT,
+    nid TEXT,
+    registration_date TEXT,
+    last_followup_date TEXT
   );
 
   CREATE TABLE IF NOT EXISTS sales (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     service TEXT,
     price REAL,
-    client TEXT
+    client TEXT,
+    date TEXT,
+    supplier_name TEXT,
+    wholesale_price REAL,
+    net_profit REAL,
+    paid_amount REAL,
+    remaining_amount REAL,
+    created_by INTEGER,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    description TEXT,
+    assigned_to TEXT,
+    due_date TEXT,
+    priority TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at TEXT,
+    completed_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS broker_dues (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    broker_name TEXT,
+    service_name TEXT,
+    total_amount REAL,
+    paid_amount REAL,
+    remaining_amount REAL,
+    status TEXT DEFAULT 'waiting',
+    created_at TEXT,
+    notes TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_name TEXT,
+    file_type TEXT,
+    upload_date TEXT,
+    analysis_status TEXT DEFAULT 'processing',
+    extracted_data TEXT,
+    classification TEXT,
+    file_path TEXT,
+    client_id INTEGER,
+    FOREIGN KEY (client_id) REFERENCES clients(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS clients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    national_id TEXT,
+    phone TEXT,
+    email TEXT,
+    city TEXT,
+    service TEXT,
+    notes TEXT,
+    category TEXT, -- 'worker', 'sponsor', 'mediator'
+    created_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS agents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    phone TEXT,
+    created_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS agent_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id INTEGER,
+    description TEXT,
+    paid_amount REAL,
+    wholesale_price REAL,
+    debt REAL,
+    status TEXT DEFAULT 'pending',
+    created_at TEXT,
+    FOREIGN KEY (agent_id) REFERENCES agents(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS income (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    amount REAL,
+    date TEXT
   );
 
   CREATE TABLE IF NOT EXISTS expenses (
@@ -48,8 +142,12 @@ db.exec(`
     username TEXT UNIQUE,
     password TEXT,
     full_name TEXT,
+    email TEXT,
+    phone TEXT,
     role_id INTEGER,
     is_active INTEGER DEFAULT 1,
+    subscription_start TEXT,
+    subscription_end TEXT,
     FOREIGN KEY (role_id) REFERENCES roles(id)
   );
 
@@ -154,6 +252,18 @@ db.exec(`
   );
 `);
 
+// Migration: Add nid, registration_date, last_followup_date to workers
+const workerCols = db.prepare("PRAGMA table_info(workers)").all() as any[];
+if (!workerCols.some(col => col.name === 'nid')) {
+  db.exec("ALTER TABLE workers ADD COLUMN nid TEXT");
+}
+if (!workerCols.some(col => col.name === 'registration_date')) {
+  db.exec("ALTER TABLE workers ADD COLUMN registration_date TEXT");
+}
+if (!workerCols.some(col => col.name === 'last_followup_date')) {
+  db.exec("ALTER TABLE workers ADD COLUMN last_followup_date TEXT");
+}
+
 // Migration: Add category_id and date to expenses
 const expenseCols = db.prepare("PRAGMA table_info(expenses)").all() as any[];
 if (!expenseCols.some(col => col.name === 'category_id')) {
@@ -163,10 +273,28 @@ if (!expenseCols.some(col => col.name === 'date')) {
   db.exec("ALTER TABLE expenses ADD COLUMN date TEXT");
 }
 
-// Migration: Add date to sales
+// Migration: Add new columns to sales
 const salesCols = db.prepare("PRAGMA table_info(sales)").all() as any[];
 if (!salesCols.some(col => col.name === 'date')) {
   db.exec("ALTER TABLE sales ADD COLUMN date TEXT");
+}
+if (!salesCols.some(col => col.name === 'supplier_name')) {
+  db.exec("ALTER TABLE sales ADD COLUMN supplier_name TEXT");
+}
+if (!salesCols.some(col => col.name === 'wholesale_price')) {
+  db.exec("ALTER TABLE sales ADD COLUMN wholesale_price REAL");
+}
+if (!salesCols.some(col => col.name === 'net_profit')) {
+  db.exec("ALTER TABLE sales ADD COLUMN net_profit REAL");
+}
+if (!salesCols.some(col => col.name === 'paid_amount')) {
+  db.exec("ALTER TABLE sales ADD COLUMN paid_amount REAL");
+}
+if (!salesCols.some(col => col.name === 'remaining_amount')) {
+  db.exec("ALTER TABLE sales ADD COLUMN remaining_amount REAL");
+}
+if (!salesCols.some(col => col.name === 'created_by')) {
+  db.exec("ALTER TABLE sales ADD COLUMN created_by INTEGER REFERENCES users(id)");
 }
 
 // Migration: Check if users table has role_id column
@@ -180,6 +308,33 @@ if (tableInfo.length > 0 && !hasRoleId) {
 const userCols = db.prepare("PRAGMA table_info(users)").all() as any[];
 if (!userCols.some(col => col.name === 'is_active')) {
   db.exec("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1");
+}
+if (!userCols.some(col => col.name === 'email')) {
+  db.exec("ALTER TABLE users ADD COLUMN email TEXT");
+}
+if (!userCols.some(col => col.name === 'phone')) {
+  db.exec("ALTER TABLE users ADD COLUMN phone TEXT");
+}
+if (!userCols.some(col => col.name === 'subscription_start')) {
+  db.exec("ALTER TABLE users ADD COLUMN subscription_start TEXT");
+}
+if (!userCols.some(col => col.name === 'subscription_end')) {
+  db.exec("ALTER TABLE users ADD COLUMN subscription_end TEXT");
+}
+
+// Migration: Add client_id to files
+const fileCols = db.prepare("PRAGMA table_info(files)").all() as any[];
+if (!fileCols.some(col => col.name === 'client_id')) {
+  db.exec("ALTER TABLE files ADD COLUMN client_id INTEGER REFERENCES clients(id)");
+}
+if (!fileCols.some(col => col.name === 'classification')) {
+  db.exec("ALTER TABLE files ADD COLUMN classification TEXT");
+}
+
+// Migration: Add category to clients
+const clientCols = db.prepare("PRAGMA table_info(clients)").all() as any[];
+if (!clientCols.some(col => col.name === 'category')) {
+  db.exec("ALTER TABLE clients ADD COLUMN category TEXT");
 }
 
 // Initialize default roles and admin
@@ -195,9 +350,9 @@ const initDb = db.transaction(() => {
 
   // Default settings
   const defaultSettings = [
-    { key: 'site_name', value: 'نظام ثقة' },
+    { key: 'site_name', value: 'حلول' },
     { key: 'site_logo', value: '' },
-    { key: 'official_email', value: 'info@thiqah.com' },
+    { key: 'official_email', value: 'Torkiali054@gmail.com' },
     { key: 'allow_registration', value: '0' },
     { key: 'smtp_host', value: '' },
     { key: 'smtp_port', value: '' },

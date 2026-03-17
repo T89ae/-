@@ -49,9 +49,9 @@ interface FinancialReport {
 
 // --- Components ---
 
-export default function AccountingPage({ currentUser }: { currentUser: any }) {
+export default function AccountingPage({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
   const [activeTab, setActiveTab] = useState('reports');
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
 
   return (
     <div className="space-y-6">
@@ -69,8 +69,8 @@ export default function AccountingPage({ currentUser }: { currentUser: any }) {
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all whitespace-nowrap ${
               activeTab === tab.id 
-              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' 
-              : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200 dark:shadow-none' 
+              : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-800'
             }`}
           >
             {tab.icon}
@@ -88,11 +88,11 @@ export default function AccountingPage({ currentUser }: { currentUser: any }) {
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
         >
-          {activeTab === 'reports' && <FinancialReports isAdmin={isAdmin} />}
-          {activeTab === 'sales' && <SalesManagement isAdmin={isAdmin} />}
-          {activeTab === 'debts' && <DebtManagement isAdmin={isAdmin} />}
-          {activeTab === 'inventory' && <InventoryManagement isAdmin={isAdmin} />}
-          {activeTab === 'expenses' && <ExpenseManagement isAdmin={isAdmin} />}
+          {activeTab === 'reports' && <FinancialReports currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} />}
+          {activeTab === 'sales' && <SalesManagement currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} />}
+          {activeTab === 'debts' && <DebtManagement currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} />}
+          {activeTab === 'inventory' && <InventoryManagement currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} />}
+          {activeTab === 'expenses' && <ExpenseManagement currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -101,7 +101,7 @@ export default function AccountingPage({ currentUser }: { currentUser: any }) {
 
 // --- Sub-Components ---
 
-function FinancialReports({ isAdmin }: { isAdmin: boolean }) {
+function FinancialReports({ currentUser, isAdmin, refreshCounter }: { currentUser: any, isAdmin: boolean, refreshCounter?: number }) {
   const [report, setReport] = useState<FinancialReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
@@ -109,13 +109,15 @@ function FinancialReports({ isAdmin }: { isAdmin: boolean }) {
   const fetchReport = async () => {
     setLoading(true);
     const query = dateRange.start && dateRange.end ? `?startDate=${dateRange.start}&endDate=${dateRange.end}` : '';
-    const res = await fetch(`/api/reports/financial${query}`);
+    const res = await fetch(`/api/reports/financial${query}`, {
+      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+    });
     const data = await res.json();
     setReport(data);
     setLoading(false);
   };
 
-  useEffect(() => { fetchReport(); }, []);
+  useEffect(() => { fetchReport(); }, [refreshCounter]);
 
   const exportPDF = () => {
     if (!report) return;
@@ -161,32 +163,32 @@ function FinancialReports({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="space-y-6">
       {/* Date Filter */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-wrap gap-4 items-end">
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-wrap gap-4 items-end">
         <div>
-          <label className="block text-xs font-bold text-slate-400 mb-2">من تاريخ</label>
+          <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">من تاريخ</label>
           <input 
             type="date" 
             value={dateRange.start}
             onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-            className="px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20" 
+            className="input-field py-2" 
           />
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-400 mb-2">إلى تاريخ</label>
+          <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">إلى تاريخ</label>
           <input 
             type="date" 
             value={dateRange.end}
             onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-            className="px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20" 
+            className="input-field py-2" 
           />
         </div>
-        <button onClick={fetchReport} className="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors">تحديث</button>
+        <button onClick={fetchReport} className="btn-primary py-2 px-6">تحديث</button>
         <div className="flex-1"></div>
         <div className="flex gap-2">
-          <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-xl font-bold hover:bg-rose-100 transition-colors">
+          <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl font-bold hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors">
             <Download size={18} /> PDF
           </button>
-          <button onClick={exportExcel} className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold hover:bg-emerald-100 transition-colors">
+          <button onClick={exportExcel} className="flex items-center gap-2 px-4 py-2 bg-[#00BFFF]/10 text-[#00BFFF] rounded-xl font-bold hover:bg-[#00BFFF]/20 transition-colors">
             <Download size={18} /> Excel
           </button>
         </div>
@@ -195,45 +197,48 @@ function FinancialReports({ isAdmin }: { isAdmin: boolean }) {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { title: 'إجمالي المبيعات', value: report?.totalSales, icon: <TrendingUp size={24} />, color: 'emerald' },
-          { title: 'إجمالي النفقات', value: report?.totalExpenses, icon: <TrendingDown size={24} />, color: 'rose' },
-          { title: 'إجمالي الديون', value: report?.totalDebts, icon: <CreditCard size={24} />, color: 'amber' },
-          { title: 'صافي الربح', value: report?.netProfit, icon: <DollarSign size={24} />, color: 'blue' },
+          { title: 'إجمالي المبيعات', value: report?.totalSales, icon: <TrendingUp size={24} />, color: '#00BFFF' },
+          { title: 'إجمالي النفقات', value: report?.totalExpenses, icon: <TrendingDown size={24} />, color: '#ef4444' },
+          { title: 'إجمالي الديون', value: report?.totalDebts, icon: <CreditCard size={24} />, color: '#f59e0b' },
+          { title: 'صافي الربح', value: report?.netProfit, icon: <DollarSign size={24} />, color: '#00BFFF' },
         ].map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-            <div className={`w-12 h-12 bg-${stat.color}-50 text-${stat.color}-600 rounded-2xl flex items-center justify-center mb-4`}>
+          <div key={i} className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/5 shadow-2xl">
+            <div 
+              className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4"
+              style={{ backgroundColor: `${stat.color}15`, color: stat.color }}
+            >
               {stat.icon}
             </div>
-            <div className="text-sm font-bold text-slate-400">{stat.title}</div>
-            <div className="text-2xl font-black text-slate-900 mt-1">{stat.value?.toLocaleString()} <span className="text-xs font-normal">ر.س</span></div>
+            <div className="text-sm font-bold text-slate-500">{stat.title}</div>
+            <div className="text-2xl font-black text-white mt-1">{stat.value?.toLocaleString()} <span className="text-xs font-normal">ر.س</span></div>
           </div>
         ))}
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm h-[400px]">
-          <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-            <BarChartIcon size={20} className="text-emerald-600" />
+        <div className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/5 shadow-2xl h-[400px]">
+          <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-white">
+            <BarChartIcon size={20} className="text-[#00BFFF]" />
             توزيع المبيعات حسب الخدمة
           </h3>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={report?.salesByCategory}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-slate-800" />
               <XAxis dataKey="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
               <Tooltip 
-                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                cursor={{ fill: '#f8fafc' }}
+                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: '#1e293b', color: '#fff' }}
+                cursor={{ fill: '#f8fafc', opacity: 0.1 }}
               />
               <Bar dataKey="total" fill="#10b981" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm h-[400px]">
-          <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-            <PieChartIcon size={20} className="text-rose-600" />
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm h-[400px]">
+          <h3 className="text-lg font-bold mb-6 flex items-center gap-2 dark:text-white">
+            <PieChartIcon size={20} className="text-rose-600 dark:text-rose-400" />
             توزيع النفقات حسب التصنيف
           </h3>
           <ResponsiveContainer width="100%" height="100%">
@@ -253,7 +258,7 @@ function FinancialReports({ isAdmin }: { isAdmin: boolean }) {
                 ))}
               </Pie>
               <Tooltip 
-                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: '#1e293b', color: '#fff' }}
               />
               <Legend />
             </PieChart>
@@ -264,7 +269,7 @@ function FinancialReports({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-function DebtManagement({ isAdmin }: { isAdmin: boolean }) {
+function DebtManagement({ currentUser, isAdmin, refreshCounter }: { currentUser: any, isAdmin: boolean, refreshCounter?: number }) {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -277,19 +282,24 @@ function DebtManagement({ isAdmin }: { isAdmin: boolean }) {
   });
 
   const fetchDebts = async () => {
-    const res = await fetch('/api/debts');
+    const res = await fetch('/api/debts', {
+      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+    });
     const data = await res.json();
     setDebts(data);
     setLoading(false);
   };
 
-  useEffect(() => { fetchDebts(); }, []);
+  useEffect(() => { fetchDebts(); }, [refreshCounter]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     await fetch('/api/debts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-User-Id': currentUser?.id?.toString() || ''
+      },
       body: JSON.stringify(formData)
     });
     setShowAdd(false);
@@ -300,7 +310,10 @@ function DebtManagement({ isAdmin }: { isAdmin: boolean }) {
   const updateStatus = async (id: number, status: string) => {
     await fetch(`/api/debts/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-User-Id': currentUser?.id?.toString() || ''
+      },
       body: JSON.stringify({ status })
     });
     fetchDebts();
@@ -309,11 +322,11 @@ function DebtManagement({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold text-slate-900">إدارة الديون</h3>
+        <h3 className="text-xl font-bold text-slate-900 dark:text-white">إدارة الديون</h3>
         {isAdmin && (
           <button 
             onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
+            className="btn-primary flex items-center gap-2 py-2 px-6"
           >
             <Plus size={18} /> إضافة دين جديد
           </button>
@@ -324,92 +337,92 @@ function DebtManagement({ isAdmin }: { isAdmin: boolean }) {
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm"
+          className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
         >
           <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">نوع الدين</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">نوع الدين</label>
               <select 
                 value={formData.type}
                 onChange={e => setFormData(prev => ({ ...prev, type: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               >
                 <option value="debtor">مدين (لنا)</option>
                 <option value="creditor">دائن (علينا)</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">اسم الشخص / الجهة</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">اسم الشخص / الجهة</label>
               <input 
                 required
                 value={formData.person_name}
                 onChange={e => setFormData(prev => ({ ...prev, person_name: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">المبلغ</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">المبلغ</label>
               <input 
                 required
                 type="number"
                 value={formData.amount}
                 onChange={e => setFormData(prev => ({ ...prev, amount: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">تاريخ الاستحقاق</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">تاريخ الاستحقاق</label>
               <input 
                 required
                 type="date"
                 value={formData.due_date}
                 onChange={e => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-slate-400 mb-2">الوصف</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">الوصف</label>
               <input 
                 value={formData.description}
                 onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               />
             </div>
             <div className="lg:col-span-3 flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setShowAdd(false)} className="px-6 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold">إلغاء</button>
-              <button type="submit" className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-bold">حفظ</button>
+              <button type="button" onClick={() => setShowAdd(false)} className="btn-secondary py-2 px-6">إلغاء</button>
+              <button type="submit" className="btn-primary py-2 px-6">حفظ</button>
             </div>
           </form>
         </motion.div>
       )}
 
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="table-container">
         <table className="w-full text-right">
-          <thead className="bg-slate-50 border-b border-slate-100">
+          <thead>
             <tr>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">النوع</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">الاسم</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">المبلغ</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">تاريخ الاستحقاق</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">الحالة</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600 text-center">الإجراءات</th>
+              <th>النوع</th>
+              <th>الاسم</th>
+              <th>المبلغ</th>
+              <th>تاريخ الاستحقاق</th>
+              <th>الحالة</th>
+              <th className="text-center">الإجراءات</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
             {loading ? (
               <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400"><Loader2 className="animate-spin mx-auto" /></td></tr>
             ) : debts.length === 0 ? (
               <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400">لا توجد ديون مسجلة</td></tr>
             ) : debts.map(debt => (
-              <tr key={debt.id} className="hover:bg-slate-50 transition-colors">
+              <tr key={debt.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                 <td className="px-6 py-4">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${debt.type === 'debtor' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${debt.type === 'debtor' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
                     {debt.type === 'debtor' ? 'مدين (لنا)' : 'دائن (علينا)'}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-sm text-slate-900 font-bold">{debt.person_name}</td>
-                <td className="px-6 py-4 text-sm text-slate-900">{debt.amount} ر.س</td>
-                <td className="px-6 py-4 text-sm text-slate-600">
+                <td className="px-6 py-4 text-sm text-slate-900 dark:text-white font-bold">{debt.person_name}</td>
+                <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-300">{debt.amount} ر.س</td>
+                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
                   <div className="flex items-center gap-2">
                     <Calendar size={14} className="text-slate-400" />
                     {debt.due_date}
@@ -417,9 +430,9 @@ function DebtManagement({ isAdmin }: { isAdmin: boolean }) {
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    debt.status === 'paid' ? 'bg-emerald-100 text-emerald-600' :
-                    debt.status === 'late' ? 'bg-rose-100 text-rose-600' :
-                    'bg-amber-100 text-amber-600'
+                    debt.status === 'paid' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                    debt.status === 'late' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' :
+                    'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
                   }`}>
                     {debt.status === 'paid' ? 'مدفوع' : debt.status === 'late' ? 'متأخر' : 'غير مدفوع'}
                   </span>
@@ -429,14 +442,14 @@ function DebtManagement({ isAdmin }: { isAdmin: boolean }) {
                     {debt.status !== 'paid' && (
                       <button 
                         onClick={() => updateStatus(debt.id, 'paid')}
-                        className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-colors"
+                        className="p-2 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-xl transition-colors"
                         title="تم السداد"
                       >
                         <CheckCircle size={18} />
                       </button>
                     )}
                     {isAdmin && (
-                      <button className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors">
+                      <button className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-colors">
                         <Trash2 size={18} />
                       </button>
                     )}
@@ -451,7 +464,7 @@ function DebtManagement({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-function InventoryManagement({ isAdmin }: { isAdmin: boolean }) {
+function InventoryManagement({ currentUser, isAdmin, refreshCounter }: { currentUser: any, isAdmin: boolean, refreshCounter?: number }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -465,19 +478,24 @@ function InventoryManagement({ isAdmin }: { isAdmin: boolean }) {
   });
 
   const fetchProducts = async () => {
-    const res = await fetch('/api/products');
+    const res = await fetch('/api/products', {
+      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+    });
     const data = await res.json();
     setProducts(data);
     setLoading(false);
   };
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => { fetchProducts(); }, [refreshCounter]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     await fetch('/api/products', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-User-Id': currentUser?.id?.toString() || ''
+      },
       body: JSON.stringify(formData)
     });
     setShowAdd(false);
@@ -488,11 +506,11 @@ function InventoryManagement({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold text-slate-900">الجرد والمخزون</h3>
+        <h3 className="text-xl font-bold text-slate-900 dark:text-white">الجرد والمخزون</h3>
         {isAdmin && (
           <button 
             onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
+            className="btn-primary flex items-center gap-2 py-2 px-6"
           >
             <Plus size={18} /> إضافة منتج / خدمة
           </button>
@@ -503,70 +521,70 @@ function InventoryManagement({ isAdmin }: { isAdmin: boolean }) {
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm"
+          className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
         >
           <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">نوع المنتج</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">نوع المنتج</label>
               <select 
                 value={formData.type}
                 onChange={e => setFormData(prev => ({ ...prev, type: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               >
                 <option value="regular">منتج عادي</option>
                 <option value="establishment">منتج مؤسسات (مرتبط بالعمالة)</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">اسم المنتج / الخدمة</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">اسم المنتج / الخدمة</label>
               <input 
                 required
                 value={formData.name}
                 onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               />
             </div>
             {formData.type === 'regular' && (
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-2">الكمية</label>
+                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">الكمية</label>
                 <input 
                   required
                   type="number"
                   value={formData.quantity}
                   onChange={e => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
-                  className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  className="input-field py-2"
                 />
               </div>
             )}
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">السعر</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">السعر</label>
               <input 
                 required
                 type="number"
                 value={formData.price}
                 onChange={e => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">اسم المعقب</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">اسم المعقب</label>
               <input 
                 value={formData.moaqeb_name}
                 onChange={e => setFormData(prev => ({ ...prev, moaqeb_name: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">اسم الخدمة</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">اسم الخدمة</label>
               <input 
                 value={formData.service_name}
                 onChange={e => setFormData(prev => ({ ...prev, service_name: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               />
             </div>
             <div className="lg:col-span-3 flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setShowAdd(false)} className="px-6 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold">إلغاء</button>
-              <button type="submit" className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-bold">حفظ</button>
+              <button type="button" onClick={() => setShowAdd(false)} className="btn-secondary py-2 px-6">إلغاء</button>
+              <button type="submit" className="btn-primary py-2 px-6">حفظ</button>
             </div>
           </form>
         </motion.div>
@@ -578,36 +596,36 @@ function InventoryManagement({ isAdmin }: { isAdmin: boolean }) {
         ) : products.length === 0 ? (
           <div className="col-span-full text-center p-12 text-slate-400">لا توجد منتجات مسجلة</div>
         ) : products.map(product => (
-          <div key={product.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+          <div key={product.id} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
-              <div className={`px-3 py-1 rounded-full text-[10px] font-bold ${product.type === 'establishment' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+              <div className={`px-3 py-1 rounded-full text-[10px] font-bold ${product.type === 'establishment' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
                 {product.type === 'establishment' ? 'منتج مؤسسات' : 'منتج عادي'}
               </div>
-              <div className="text-emerald-600 font-black">{product.price} <span className="text-[10px]">ر.س</span></div>
+              <div className="text-emerald-600 dark:text-emerald-400 font-black">{product.price} <span className="text-[10px]">ر.س</span></div>
             </div>
-            <h4 className="text-lg font-bold text-slate-900 mb-2">{product.name}</h4>
+            <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{product.name}</h4>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-400">الكمية المتاحة:</span>
-                <span className={`font-bold ${product.quantity < 5 ? 'text-rose-600' : 'text-slate-900'}`}>{product.quantity}</span>
+                <span className="text-slate-400 dark:text-slate-500">الكمية المتاحة:</span>
+                <span className={`font-bold ${product.quantity < 5 ? 'text-rose-600' : 'text-slate-900 dark:text-white'}`}>{product.quantity}</span>
               </div>
               {product.moaqeb_name && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">المعقب:</span>
-                  <span className="text-slate-900">{product.moaqeb_name}</span>
+                  <span className="text-slate-400 dark:text-slate-500">المعقب:</span>
+                  <span className="text-slate-900 dark:text-white">{product.moaqeb_name}</span>
                 </div>
               )}
               {product.service_name && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">الخدمة:</span>
-                  <span className="text-slate-900">{product.service_name}</span>
+                  <span className="text-slate-400 dark:text-slate-500">الخدمة:</span>
+                  <span className="text-slate-900 dark:text-white">{product.service_name}</span>
                 </div>
               )}
             </div>
             {isAdmin && (
-              <div className="flex gap-2 mt-6 pt-4 border-t border-slate-50">
-                <button className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-100 transition-colors">تعديل</button>
-                <button className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"><Trash2 size={18} /></button>
+              <div className="flex gap-2 mt-6 pt-4 border-t border-slate-50 dark:border-slate-800">
+                <button className="flex-1 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">تعديل</button>
+                <button className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-colors"><Trash2 size={18} /></button>
               </div>
             )}
           </div>
@@ -617,18 +635,20 @@ function InventoryManagement({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-function SalesManagement({ isAdmin }: { isAdmin: boolean }) {
+function SalesManagement({ currentUser, isAdmin, refreshCounter }: { currentUser: any, isAdmin: boolean, refreshCounter?: number }) {
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchSales = async () => {
-    const res = await fetch('/api/sales');
+    const res = await fetch('/api/sales', {
+      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+    });
     const data = await res.json();
     setSales(data);
     setLoading(false);
   };
 
-  useEffect(() => { fetchSales(); }, []);
+  useEffect(() => { fetchSales(); }, [refreshCounter]);
 
   const printInvoice = (sale: any) => {
     const doc = new jsPDF();
@@ -661,32 +681,32 @@ function SalesManagement({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="table-container">
         <table className="w-full text-right">
-          <thead className="bg-slate-50 border-b border-slate-100">
+          <thead>
             <tr>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">التاريخ</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">الخدمة</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">العميل</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">المبلغ</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600 text-center">الإجراءات</th>
+              <th>التاريخ</th>
+              <th>الخدمة</th>
+              <th>العميل</th>
+              <th>المبلغ</th>
+              <th className="text-center">الإجراءات</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
             {loading ? (
               <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400"><Loader2 className="animate-spin mx-auto" /></td></tr>
             ) : sales.length === 0 ? (
               <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400">لا توجد مبيعات مسجلة</td></tr>
             ) : sales.map(sale => (
-              <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4 text-sm text-slate-500">{sale.date || '---'}</td>
-                <td className="px-6 py-4 text-sm text-slate-900 font-bold">{sale.service}</td>
-                <td className="px-6 py-4 text-sm text-slate-600">{sale.client}</td>
-                <td className="px-6 py-4 text-sm text-emerald-600 font-black">{sale.price} ر.س</td>
+              <tr key={sale.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{sale.date || '---'}</td>
+                <td className="px-6 py-4 text-sm text-slate-900 dark:text-white font-bold">{sale.service}</td>
+                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{sale.client}</td>
+                <td className="px-6 py-4 text-sm text-emerald-600 dark:text-emerald-400 font-black">{sale.price} ر.س</td>
                 <td className="px-6 py-4 text-center">
                   <button 
                     onClick={() => printInvoice(sale)}
-                    className="p-2 text-slate-400 hover:bg-slate-50 hover:text-emerald-600 rounded-xl transition-colors"
+                    className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-xl transition-colors"
                     title="طباعة الفاتورة"
                   >
                     <Printer size={18} />
@@ -701,7 +721,7 @@ function SalesManagement({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-function ExpenseManagement({ isAdmin }: { isAdmin: boolean }) {
+function ExpenseManagement({ currentUser, isAdmin, refreshCounter }: { currentUser: any, isAdmin: boolean, refreshCounter?: number }) {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -715,21 +735,28 @@ function ExpenseManagement({ isAdmin }: { isAdmin: boolean }) {
 
   const fetchData = async () => {
     const [expRes, catRes] = await Promise.all([
-      fetch('/api/expenses'),
-      fetch('/api/expense-categories')
+      fetch('/api/expenses', {
+        headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+      }),
+      fetch('/api/expense-categories', {
+        headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+      })
     ]);
     setExpenses(await expRes.json());
     setCategories(await catRes.json());
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [refreshCounter]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     await fetch('/api/expenses', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-User-Id': currentUser?.id?.toString() || ''
+      },
       body: JSON.stringify(formData)
     });
     setShowAdd(false);
@@ -740,11 +767,11 @@ function ExpenseManagement({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold text-slate-900">إدارة النفقات</h3>
+        <h3 className="text-xl font-bold text-slate-900 dark:text-white">إدارة النفقات</h3>
         {isAdmin && (
           <button 
             onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 bg-rose-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-rose-700 transition-colors"
+            className="btn-primary flex items-center gap-2 py-2 px-6 bg-rose-600 hover:bg-rose-700 shadow-rose-200 dark:shadow-none"
           >
             <Plus size={18} /> إضافة مصروف جديد
           </button>
@@ -755,34 +782,34 @@ function ExpenseManagement({ isAdmin }: { isAdmin: boolean }) {
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm"
+          className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
         >
           <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">التاريخ</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">التاريخ</label>
               <input 
                 type="date"
                 value={formData.date}
                 onChange={e => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">المصروف</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">المصروف</label>
               <input 
                 required
                 value={formData.title}
                 onChange={e => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">التصنيف</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">التصنيف</label>
               <select 
                 required
                 value={formData.category_id}
                 onChange={e => setFormData(prev => ({ ...prev, category_id: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               >
                 <option value="">اختر التصنيف</option>
                 {categories.map(cat => (
@@ -791,48 +818,59 @@ function ExpenseManagement({ isAdmin }: { isAdmin: boolean }) {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">المبلغ</label>
+              <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">المبلغ</label>
               <input 
                 required
                 type="number"
                 value={formData.amount}
                 onChange={e => setFormData(prev => ({ ...prev, amount: e.target.value }))}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="input-field py-2"
               />
             </div>
             <div className="lg:col-span-4 flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setShowAdd(false)} className="px-6 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold">إلغاء</button>
-              <button type="submit" className="px-6 py-2 bg-rose-600 text-white rounded-xl font-bold">حفظ</button>
+              <button type="button" onClick={() => setShowAdd(false)} className="btn-secondary py-2 px-6">إلغاء</button>
+              <button type="submit" className="btn-primary py-2 px-6 bg-rose-600 hover:bg-rose-700 shadow-rose-200 dark:shadow-none">حفظ</button>
             </div>
           </form>
         </motion.div>
       )}
 
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="table-container">
         <table className="w-full text-right">
-          <thead className="bg-slate-50 border-b border-slate-100">
+          <thead>
             <tr>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">التاريخ</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">المصروف</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">التصنيف</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">المبلغ</th>
-              {isAdmin && <th className="px-6 py-4 text-sm font-bold text-slate-600 text-center">الإجراءات</th>}
+              <th>التاريخ</th>
+              <th>المصروف</th>
+              <th>التصنيف</th>
+              <th>المبلغ</th>
+              {isAdmin && <th className="text-center">الإجراءات</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
             {loading ? (
               <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400"><Loader2 className="animate-spin mx-auto" /></td></tr>
             ) : expenses.length === 0 ? (
               <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400">لا توجد مصروفات مسجلة</td></tr>
-            ) : expenses.map(exp => (
-              <tr key={exp.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4 text-sm text-slate-500">{exp.date || '---'}</td>
-                <td className="px-6 py-4 text-sm text-slate-900 font-bold">{exp.title}</td>
-                <td className="px-6 py-4 text-sm text-slate-600">{exp.category_name}</td>
-                <td className="px-6 py-4 text-sm text-rose-600 font-black">{exp.amount} ر.س</td>
+            ) : expenses.map(expense => (
+              <tr key={expense.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{expense.date}</td>
+                <td className="px-6 py-4 text-sm text-slate-900 dark:text-white font-bold">{expense.title}</td>
+                <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                  <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-bold">
+                    {expense.category_name}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-sm text-rose-600 dark:text-rose-400 font-black">{expense.amount} ر.س</td>
                 {isAdmin && (
                   <td className="px-6 py-4 text-center">
-                    <button className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"><Trash2 size={18} /></button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-xl transition-colors">
+                        <Edit2 size={18} />
+                      </button>
+                      <button className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-colors">
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </td>
                 )}
               </tr>

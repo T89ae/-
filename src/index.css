@@ -3,17 +3,117 @@
 
 @theme {
   --font-sans: "Tajawal", ui-sans-serif, system-ui, sans-serif;
+  --color-primary: #00BFFF;
+  --color-secondary: #C0C0C0;
+  --color-dark: #121212;
 }
 
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 197 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 197 100% 50%;
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 197 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 75%;
+    --secondary-foreground: 0 0% 7%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 197 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 197 100% 50%;
+  }
+}
 
 body {
-  @apply bg-slate-50 text-slate-900;
+  @apply bg-white text-slate-900 transition-colors duration-300;
+  background-image: 
+    linear-gradient(rgba(0, 191, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 191, 255, 0.05) 1px, transparent 1px);
+  background-size: 60px 60px;
+  background-attachment: fixed;
   direction: rtl;
 }
 
-.markdown-body h1 { @apply text-2xl font-bold mb-4; }
-.markdown-body h2 { @apply text-xl font-semibold mt-6 mb-3; }
-.markdown-body p { @apply mb-4 leading-relaxed; }
-.markdown-body ul { @apply list-disc list-inside mb-4; }
-.markdown-body li { @apply mb-2; }
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full;
+}
+
+/* Unified Table Styles */
+.table-container {
+  @apply overflow-x-auto rounded-3xl border border-slate-100 bg-white shadow-xl;
+}
+
+table {
+  @apply w-full text-right border-collapse;
+}
+
+th {
+  @apply px-6 py-4 text-sm font-bold text-slate-500 bg-slate-50 border-b border-slate-100;
+}
+
+td {
+  @apply px-6 py-4 text-sm text-slate-700 border-b border-slate-50;
+}
+
+tr:last-child td {
+  @apply border-b-0;
+}
+
+tr:hover td {
+  @apply bg-slate-50/50;
+}
+
+/* Unified Button Styles */
+.btn-primary {
+  @apply px-6 py-2.5 bg-[#00BFFF] text-white rounded-2xl font-bold hover:bg-[#0099CC] transition-all shadow-lg shadow-[#00BFFF]/20 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2;
+}
+
+.btn-secondary {
+  @apply px-6 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 rounded-2xl font-bold hover:bg-slate-100 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2;
+}
+
+/* Unified Input Styles */
+.input-field {
+  @apply w-full px-6 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-[#00BFFF]/30 transition-all text-slate-900 placeholder:text-slate-400;
+}
 
