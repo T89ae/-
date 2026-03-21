@@ -44,17 +44,18 @@ import Dashboard from './components/Dashboard';
 import UserManual from './components/UserManual';
 import AccountingPage from './components/AccountingPage';
 import ConfirmModal from './components/ConfirmModal';
-import WorkerFollowupPage from './components/WorkerFollowupPage';
 import TasksPage from './components/TasksPage';
 import BrokersDuesPage from './components/BrokersDuesPage';
 import SalesDebtsPage from './components/SalesDebtsPage';
 import FileManagementPage from './components/FileManagementPage';
 import ClientsPage from './components/ClientsPage';
 import AgentsPage from './components/AgentsPage';
+import { LoginPage } from './components/LoginPage';
+import { UsersPage } from './components/UsersPage';
 
 // --- Components for the new sections ---
 
-function WorkersPage({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
+function WorkersPage({ currentUser, refreshCounter, token }: { currentUser: any, refreshCounter?: number, token: string }) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [name, setName] = useState('');
   const [job, setJob] = useState('');
@@ -65,7 +66,7 @@ function WorkersPage({ currentUser, refreshCounter }: { currentUser: any, refres
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [workerToDelete, setWorkerToDelete] = useState<number | null>(null);
 
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
   
   // Filtering and Sorting State
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,7 +79,10 @@ function WorkersPage({ currentUser, refreshCounter }: { currentUser: any, refres
 
   const fetchWorkers = async () => {
     const res = await fetch('/api/workers', {
-      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'X-User-Id': currentUser?.id?.toString() || '' 
+      }
     });
     const data = await res.json();
     setWorkers(data);
@@ -180,15 +184,15 @@ function WorkersPage({ currentUser, refreshCounter }: { currentUser: any, refres
 
   return (
     <div className="space-y-6">
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-        <h3 className="text-lg font-bold mb-4 dark:text-white">{editingId ? 'تعديل بيانات عامل' : 'إضافة عامل جديد'}</h3>
+      <div className="bg-white dark:bg-[#0a0a0a] p-8 rounded-xl border border-slate-100 dark:border-white/5">
+        <h3 className="text-[10px] font-bold mb-6 text-slate-400 uppercase tracking-wider">{editingId ? 'تعديل بيانات عامل' : 'إضافة عامل جديد'}</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <input value={name} onChange={e => setName(e.target.value)} placeholder="اسم العامل" className="input-field" />
           <input value={job} onChange={e => setJob(e.target.value)} placeholder="المهنة" className="input-field" />
           <input value={sponsor} onChange={e => setSponsor(e.target.value)} placeholder="الكفيل" className="input-field" />
           <input value={nid} onChange={e => setNid(e.target.value)} placeholder="رقم الهوية / الإقامة" className="input-field" />
           <button onClick={addWorker} className="md:col-span-2 lg:col-span-4 btn-primary flex items-center justify-center gap-2">
-            <Plus size={18} /> {editingId ? 'تحديث البيانات' : 'إضافة عامل'}
+            <Plus size={16} /> {editingId ? 'تحديث البيانات' : 'إضافة عامل'}
           </button>
           {editingId && (
             <button onClick={() => { setEditingId(null); setName(''); setJob(''); setSponsor(''); setNid(''); }} className="md:col-span-2 lg:col-span-4 btn-secondary">
@@ -198,7 +202,7 @@ function WorkersPage({ currentUser, refreshCounter }: { currentUser: any, refres
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
         <ConfirmModal 
           isOpen={isConfirmOpen}
           onClose={() => setIsConfirmOpen(false)}
@@ -206,19 +210,19 @@ function WorkersPage({ currentUser, refreshCounter }: { currentUser: any, refres
           title="حذف عامل"
           message="هل أنت متأكد من حذف هذا العامل؟ لا يمكن التراجع عن هذا الإجراء."
         />
-        <div className="p-4 border-b border-slate-50 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="p-4 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <input 
               type="text" 
               placeholder="بحث في قائمة العمال..." 
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pr-10 pl-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all dark:text-white"
+              className="w-full pr-10 pl-4 py-2 bg-transparent border border-slate-200 dark:border-slate-800 rounded-lg text-sm outline-none transition-all dark:text-white"
             />
           </div>
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
-            <Filter size={14} />
+          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <Filter size={12} />
             <span>إجمالي النتائج: {filteredWorkers.length}</span>
           </div>
         </div>
@@ -328,7 +332,7 @@ function WorkersPage({ currentUser, refreshCounter }: { currentUser: any, refres
   );
 }
 
-function SponsorsPage({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
+function SponsorsPage({ currentUser, refreshCounter, token }: { currentUser: any, refreshCounter?: number, token: string }) {
   const [sponsors, setSponsors] = useState<any[]>([]);
   const [name, setName] = useState('');
   const [nid, setNid] = useState('');
@@ -342,11 +346,14 @@ function SponsorsPage({ currentUser, refreshCounter }: { currentUser: any, refre
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [sponsorToDelete, setSponsorToDelete] = useState<number | null>(null);
 
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
 
   const fetchSponsors = async () => {
     const res = await fetch('/api/sponsors', {
-      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'X-User-Id': currentUser?.id?.toString() || '' 
+      }
     });
     const data = await res.json();
     setSponsors(data);
@@ -451,8 +458,8 @@ function SponsorsPage({ currentUser, refreshCounter }: { currentUser: any, refre
           <h2 className="text-2xl font-bold dark:text-white">عمال الكفيل: {selectedSponsor.sponsor_name}</h2>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-          <h3 className="text-lg font-bold mb-4 dark:text-white">إضافة عامل لهذا الكفيل</h3>
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-100 dark:border-slate-800">
+          <h3 className="text-sm font-bold mb-6 dark:text-white">إضافة عامل لهذا الكفيل</h3>
           <div className="flex gap-4">
             <input 
               value={newWorkerName} 
@@ -501,15 +508,15 @@ function SponsorsPage({ currentUser, refreshCounter }: { currentUser: any, refre
 
   return (
     <div className="space-y-6">
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-        <h3 className="text-lg font-bold mb-4 dark:text-white">{editingId ? 'تعديل بيانات كفيل' : 'إضافة كفيل جديد'}</h3>
+      <div className="bg-white dark:bg-[#0a0a0a] p-8 rounded-xl border border-slate-100 dark:border-white/5">
+        <h3 className="text-[10px] font-bold mb-6 text-slate-400 uppercase tracking-wider">{editingId ? 'تعديل بيانات كفيل' : 'إضافة كفيل جديد'}</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <input value={name} onChange={e => setName(e.target.value)} placeholder="اسم الكفيل" className="input-field" />
           <input value={nid} onChange={e => setNid(e.target.value)} placeholder="رقم الهوية" className="input-field" />
           <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="رقم الجوال" className="input-field" />
           <input value={broker} onChange={e => setBroker(e.target.value)} placeholder="اسم الوسيط" className="input-field" />
           <button onClick={addSponsor} className="md:col-span-2 lg:col-span-4 btn-primary flex items-center justify-center gap-2">
-            <Plus size={18} /> {editingId ? 'تحديث البيانات' : 'حفظ الكفيل'}
+            <Plus size={16} /> {editingId ? 'تحديث البيانات' : 'حفظ الكفيل'}
           </button>
           {editingId && (
             <button onClick={() => { setEditingId(null); setName(''); setNid(''); setPhone(''); setBroker(''); }} className="md:col-span-2 lg:col-span-4 btn-secondary">
@@ -649,14 +656,14 @@ function SalesPage({ currentUser }: { currentUser: any }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-        <h3 className="text-lg font-bold mb-4 dark:text-white">{editingId ? 'تعديل مبيعات' : 'إضافة مبيعات جديدة'}</h3>
+      <div className="bg-white dark:bg-[#0a0a0a] p-8 rounded-xl border border-slate-100 dark:border-white/5">
+        <h3 className="text-[10px] font-bold mb-6 text-slate-400 uppercase tracking-wider">{editingId ? 'تعديل مبيعات' : 'إضافة مبيعات جديدة'}</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <input value={service} onChange={e => setService(e.target.value)} placeholder="الخدمة" className="input-field" />
           <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="السعر" className="input-field" />
           <input value={client} onChange={e => setClient(e.target.value)} placeholder="العميل" className="input-field" />
           <button onClick={addSale} className="md:col-span-3 btn-primary flex items-center justify-center gap-2">
-            <Plus size={18} /> {editingId ? 'تحديث البيانات' : 'إضافة مبيعات'}
+            <Plus size={16} /> {editingId ? 'تحديث البيانات' : 'إضافة مبيعات'}
           </button>
           {editingId && (
             <button onClick={() => { setEditingId(null); setService(''); setPrice(''); setClient(''); }} className="md:col-span-3 btn-secondary">
@@ -770,13 +777,13 @@ function ExpensesPage({ currentUser }: { currentUser: any }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-        <h3 className="text-lg font-bold mb-4 dark:text-white">{editingId ? 'تعديل مصروف' : 'إضافة مصروف جديد'}</h3>
+      <div className="bg-white dark:bg-[#0a0a0a] p-8 rounded-xl border border-slate-100 dark:border-white/5">
+        <h3 className="text-[10px] font-bold mb-6 text-slate-400 uppercase tracking-wider">{editingId ? 'تعديل مصروف' : 'إضافة مصروف جديد'}</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="المصروف" className="input-field" />
           <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="المبلغ" className="input-field" />
           <button onClick={addExpense} className="md:col-span-2 btn-primary flex items-center justify-center gap-2">
-            <Plus size={18} /> {editingId ? 'تحديث البيانات' : 'إضافة مصروف'}
+            <Plus size={16} /> {editingId ? 'تحديث البيانات' : 'إضافة مصروف'}
           </button>
           {editingId && (
             <button onClick={() => { setEditingId(null); setTitle(''); setAmount(''); }} className="md:col-span-2 btn-secondary">
@@ -828,20 +835,15 @@ function ExpensesPage({ currentUser }: { currentUser: any }) {
 // --- Main App with Login ---
 
 export default function App() {
-  const [isLoggedIn, setLoggedIn] = useState(true);
-  const [showLogin, setShowLogin] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>({
-    id: 'admin_default',
-    full_name: 'مدير النظام',
-    email: 'admin@7ulul.com',
-    role: 'super_admin'
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    const saved = localStorage.getItem('user');
+    return saved ? JSON.parse(saved) : null;
   });
+  const [isLoadingAuth, setIsLoadingAuth] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(false);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
   const [isDarkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('theme');
@@ -849,6 +851,27 @@ export default function App() {
     }
     return false;
   });
+
+  const handleLogin = (newToken: string, user: any) => {
+    setToken(newToken);
+    setCurrentUser(user);
+    localStorage.setItem('token', newToken);
+    localStorage.setItem('user', JSON.stringify(user));
+  };
+
+  const handleLogout = () => {
+    setToken(null);
+    setCurrentUser(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setActiveTab('dashboard');
+  };
+
+  const hasPermission = (permission: string) => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'owner') return true;
+    return currentUser.permissions?.includes(permission);
+  };
   const [refreshCounter, setRefreshCounter] = useState(0);
 
   useEffect(() => {
@@ -868,6 +891,7 @@ export default function App() {
   const secureFetch = async (url: string, options: any = {}) => {
     const headers = {
       ...options.headers,
+      'Authorization': `Bearer ${token}`,
       'X-User-Id': currentUser?.id?.toString() || ''
     };
     return fetch(url, { ...options, headers });
@@ -884,27 +908,27 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard currentUser={currentUser} refreshCounter={refreshCounter} />;
+        return <Dashboard currentUser={currentUser} refreshCounter={refreshCounter} token={token!} />;
       case 'workers':
-        return <WorkersPage currentUser={currentUser} refreshCounter={refreshCounter} />;
-      case 'worker_followup':
-        return <WorkerFollowupPage currentUser={currentUser} refreshCounter={refreshCounter} />;
+        return <WorkersPage currentUser={currentUser} refreshCounter={refreshCounter} token={token!} />;
       case 'sponsors':
-        return <SponsorsPage currentUser={currentUser} refreshCounter={refreshCounter} />;
+        return <SponsorsPage currentUser={currentUser} refreshCounter={refreshCounter} token={token!} />;
       case 'accounting':
-        return <AccountingPage currentUser={currentUser} refreshCounter={refreshCounter} />;
+        return <AccountingPage currentUser={currentUser} refreshCounter={refreshCounter} token={token!} />;
       case 'tasks':
-        return <TasksPage currentUser={currentUser} refreshCounter={refreshCounter} />;
+        return <TasksPage currentUser={currentUser} refreshCounter={refreshCounter} token={token!} />;
       case 'file_analysis':
-        return <FileManagementPage currentUser={currentUser} refreshCounter={refreshCounter} />;
+        return <FileManagementPage currentUser={currentUser} refreshCounter={refreshCounter} token={token!} />;
       case 'agents':
-        return <AgentsPage />;
+        return <AgentsPage token={token!} />;
       case 'clients':
-        return <ClientsPage currentUser={currentUser} refreshCounter={refreshCounter} />;
+        return <ClientsPage currentUser={currentUser} refreshCounter={refreshCounter} token={token!} />;
       case 'brokers':
-        return <BrokersDuesPage currentUser={currentUser} refreshCounter={refreshCounter} />;
+        return <BrokersDuesPage currentUser={currentUser} refreshCounter={refreshCounter} token={token!} />;
       case 'debts':
-        return <SalesDebtsPage currentUser={currentUser} refreshCounter={refreshCounter} />;
+        return <SalesDebtsPage currentUser={currentUser} refreshCounter={refreshCounter} token={token!} />;
+      case 'users':
+        return <UsersPage token={token!} currentUser={currentUser} />;
       case 'reports':
       case 'expenses':
       case 'attendance':
@@ -947,8 +971,12 @@ export default function App() {
     setActiveTab(tabId);
   };
 
+  if (!token) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   return (
-    <div className={`min-h-screen flex ${isDarkMode ? 'bg-[#121212] text-white' : 'bg-slate-50 text-slate-900'} font-sans transition-colors duration-300`}>
+    <div className={`min-h-screen flex ${isDarkMode ? 'bg-zinc-950 text-zinc-100' : 'bg-white text-zinc-900'} font-sans transition-colors duration-300 antialiased`}>
       {/* Sidebar Overlay for Mobile */}
       <AnimatePresence>
         {isMobileMenuOpen && (
@@ -971,19 +999,17 @@ export default function App() {
             ? (isMobileMenuOpen ? 0 : 300) 
             : 0
         }}
-        className={`fixed top-0 right-0 h-full ${isDarkMode ? 'bg-[#1a1a1a] border-white/5' : 'bg-white border-slate-200'} border-l z-50 flex flex-col shadow-2xl transition-colors duration-300`}
+        className={`fixed top-0 right-0 h-full ${isDarkMode ? 'bg-zinc-950 border-zinc-900' : 'bg-white border-zinc-100'} border-l z-50 flex flex-col transition-colors duration-300`}
       >
-        <div className="p-6 flex items-center justify-between">
+        <div className="p-10 flex items-center justify-between">
           {(isSidebarOpen || (typeof window !== 'undefined' && window.innerWidth < 1024)) && (
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="flex items-center gap-3"
             >
-              <div className="w-10 h-10 flex items-center justify-center">
-                <Logo className="w-10 h-10" />
-              </div>
-              <span className={`text-xl font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>حلول</span>
+              <Logo className="w-8 h-8 grayscale dark:invert" />
+              <span className="text-xl font-semibold tracking-tight">حلول</span>
             </motion.div>
           )}
           <button 
@@ -994,20 +1020,24 @@ export default function App() {
                 setSidebarOpen(!isSidebarOpen);
               }
             }}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-400 transition-colors"
+            className="p-2 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg text-zinc-400 transition-colors"
           >
-            <X size={20} />
+            <X size={16} />
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-4 py-2 space-y-1 custom-scrollbar">
+        <nav className="flex-1 overflow-y-auto px-6 py-4 space-y-1 custom-scrollbar">
           {SECTIONS.filter(s => {
-            if (currentUser?.role === 'super_admin') return true;
-            if (currentUser?.role === 'admin') {
-              return !['admin_users', 'admin_settings', 'admin_logs', 'admin_reports'].includes(s.id);
-            }
-            // Regular user
-            return !['admin_users', 'admin_settings', 'admin_logs', 'permissions', 'reports', 'expenses', 'admin_reports'].includes(s.id);
+            if (s.id === 'dashboard') return true;
+            if (s.id === 'users') return hasPermission('manage_users');
+            if (s.id === 'reports') return hasPermission('view_reports');
+            if (s.id === 'sales') return hasPermission('manage_sales');
+            if (s.id === 'expenses') return hasPermission('manage_expenses');
+            if (s.id === 'workers') return hasPermission('manage_workers');
+            if (s.id === 'sponsors') return hasPermission('manage_sponsors');
+            if (s.id === 'clients') return hasPermission('manage_clients');
+            if (s.id === 'file_analysis') return hasPermission('manage_files');
+            return true;
           }).map((section) => (
             <button
               key={section.id}
@@ -1015,152 +1045,105 @@ export default function App() {
                 handleTabChange(section.id);
                 if (window.innerWidth < 1024) setMobileMenuOpen(false);
               }}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all group ${
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all group ${
                 activeTab === section.id 
-                ? 'bg-[#00BFFF] text-white shadow-lg shadow-[#00BFFF]/20' 
-                : `${isDarkMode ? 'text-slate-400 hover:bg-white/5 hover:text-white' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`
+                ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 font-medium' 
+                : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900'
               }`}
             >
-              <span className={`${activeTab === section.id ? 'text-white' : 'text-slate-500 group-hover:text-[#00BFFF]'}`}>
+              <div className={`${activeTab === section.id ? 'text-inherit' : 'text-zinc-400 group-hover:text-inherit'}`}>
                 {section.icon}
-              </span>
+              </div>
               {(isSidebarOpen || (typeof window !== 'undefined' && window.innerWidth < 1024)) && (
-                <motion.span 
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="text-sm font-medium whitespace-nowrap flex-1 text-right"
-                >
-                  {section.title}
-                </motion.span>
+                <span className="text-sm truncate">{section.title}</span>
               )}
             </button>
           ))}
         </nav>
 
-        <div className={`p-4 border-t ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-100 bg-slate-50/50'}`}>
-          <div className="flex items-center gap-3 px-2 mb-4">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold shadow-lg ${
-              currentUser?.role === 'super_admin' ? 'bg-rose-600 shadow-rose-100 dark:shadow-none' : 
-              currentUser?.role === 'admin' ? 'bg-emerald-600 shadow-emerald-100 dark:shadow-none' : 'bg-slate-600 shadow-slate-100 dark:shadow-none'
-            }`}>
-              {currentUser?.full_name?.charAt(0)}
-            </div>
+        <div className="p-6 border-t border-zinc-100 dark:border-zinc-900">
+          <button 
+            onClick={handleLogout}
+            className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl text-zinc-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all group`}
+          >
+            <LogOut size={20} />
             {(isSidebarOpen || (typeof window !== 'undefined' && window.innerWidth < 1024)) && (
-              <div className="flex-1 min-w-0 text-right">
-                <p className={`text-sm font-black truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{currentUser?.full_name}</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  {currentUser?.role === 'super_admin' ? 'مدير عام' : 
-                   currentUser?.role === 'admin' ? 'مدير نظام' : 'موظف'}
-                </p>
-              </div>
+              <span className="text-sm font-medium">تسجيل الخروج</span>
             )}
-          </div>
+          </button>
         </div>
       </motion.aside>
 
       {/* Main Content */}
       <main 
-        className="flex-1 transition-all duration-300 min-w-0"
-        style={{ marginRight: typeof window !== 'undefined' && window.innerWidth >= 1024 ? (isSidebarOpen ? 280 : 80) : 0 }}
+        className={`flex-1 flex flex-col transition-all duration-300 ${
+          typeof window !== 'undefined' && window.innerWidth >= 1024 
+            ? (isSidebarOpen ? 'mr-[280px]' : 'mr-[80px]') 
+            : 'mr-0'
+        }`}
       >
         {/* Header */}
-        <header className={`sticky top-0 z-40 ${isDarkMode ? 'bg-[#121212]/80 border-white/5' : 'bg-white/80 border-slate-200'} backdrop-blur-md border-b px-4 lg:px-8 py-4 flex items-center justify-between transition-colors duration-300`}>
-          <div className="flex items-center gap-4 flex-1">
+        <header className={`sticky top-0 z-40 ${isDarkMode ? 'bg-zinc-950/80' : 'bg-white/80'} backdrop-blur-md border-b border-zinc-100 dark:border-zinc-900 px-8 h-20 flex items-center justify-between transition-colors duration-300`}>
+          <div className="flex items-center gap-6">
             <button 
               onClick={() => setMobileMenuOpen(true)}
-              className={`p-2 lg:hidden hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-slate-400`}
+              className="p-2 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg text-zinc-500 lg:hidden"
             >
-              <Menu size={24} />
+              <Menu size={20} />
             </button>
-            <div className="relative max-w-md w-full hidden md:block">
-              <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+            <h1 className="heading-section">
+              {SECTIONS.find(s => s.id === activeTab)?.title}
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center bg-zinc-50 dark:bg-zinc-900 px-4 py-2 rounded-xl border border-zinc-100 dark:border-zinc-800 w-80 group focus-within:border-zinc-900 dark:focus-within:border-zinc-100 transition-all">
+              <Search size={16} className="text-zinc-400 group-focus-within:text-zinc-900 dark:group-focus-within:text-zinc-100 transition-colors" />
               <input 
                 type="text" 
-                placeholder="ابحث عن ملف، عميل، أو فاتورة..." 
-                className={`w-full pr-12 pl-4 py-2.5 ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} border rounded-2xl text-sm focus:ring-2 focus:ring-[#00BFFF]/20 outline-none transition-all`}
+                placeholder="بحث سريع..." 
+                className="bg-transparent border-none outline-none px-3 text-sm w-full text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
               />
             </div>
-          </div>
-          
-          {currentUser?.subscription_end && (
-            (() => {
-              const today = new Date();
-              const end = new Date(currentUser.subscription_end);
-              const diffDays = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-              if (diffDays <= 7 && diffDays >= 0) {
-                return (
-                  <div className="hidden lg:flex items-center gap-2 px-4 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-500 text-xs font-bold animate-pulse mx-4">
-                    <AlertCircle size={14} />
-                    <span>ينتهي اشتراكك خلال {diffDays} أيام</span>
-                  </div>
-                );
-              }
-              return null;
-            })()
-          )}
 
-          <div className="flex items-center gap-2 lg:gap-4">
-            <button 
-              onClick={() => setRefreshCounter(prev => prev + 1)}
-              className="hidden sm:flex items-center gap-2 p-2.5 text-[#00BFFF] hover:bg-[#00BFFF]/10 rounded-2xl transition-colors font-bold text-sm"
-              title="تحديث البيانات"
-            >
-              <RefreshCcw size={20} />
-              <span className="hidden lg:inline">تحديث البيانات</span>
-            </button>
-            <button 
-              onClick={() => setDarkMode(!isDarkMode)}
-              className="p-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-colors"
-            >
-              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-            <button className="relative p-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-colors">
-              <Bell size={20} />
-              <span className="absolute top-2.5 left-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900"></span>
-            </button>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 lg:mx-2"></div>
-            <div className="flex items-center gap-3 pl-2">
-              <div className="text-left hidden sm:block text-right">
-                <p className="text-sm font-bold text-slate-900 dark:text-white">{currentUser?.full_name}</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-left">
-                  {currentUser?.role === 'super_admin' ? 'مدير عام' : 
-                   currentUser?.role === 'admin' ? 'مدير النظام' : 'موظف'}
-                </p>
-              </div>
-              <div className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500 dark:text-slate-400 border-2 border-white dark:border-slate-800 shadow-sm">
-                <User size={20} />
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => {
+                  const newMode = !isDarkMode;
+                  setDarkMode(newMode);
+                  localStorage.setItem('theme', newMode ? 'dark' : 'light');
+                  document.documentElement.classList.toggle('dark', newMode);
+                }}
+                className="p-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-xl text-zinc-500 transition-all active:scale-95"
+              >
+                {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+              
+              <div className="h-8 w-[1px] bg-zinc-100 dark:bg-zinc-900 mx-2"></div>
+
+              <div className="flex items-center gap-3 pl-2">
+                <div className="text-left hidden sm:block">
+                  <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 leading-none mb-1">{currentUser?.username}</p>
+                  <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider leading-none">
+                    {currentUser?.role === 'owner' ? 'مالك كامل الصلاحيات' : currentUser?.role === 'admin' ? 'مدير' : 'موظف'}
+                  </p>
+                </div>
+                <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-900 rounded-xl flex items-center justify-center text-zinc-500 border border-zinc-200 dark:border-zinc-800">
+                  <User size={20} />
+                </div>
               </div>
             </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <div className="p-4 lg:p-8 max-w-7xl mx-auto">
-          <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-            <div>
-              <h1 className="text-2xl lg:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                {SECTIONS.find(s => s.id === activeTab)?.title}
-              </h1>
-              <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm lg:text-base">
-                {SECTIONS.find(s => s.id === activeTab)?.description}
-              </p>
-            </div>
-            <div className="flex gap-3 w-full sm:w-auto">
-              <button className="flex-1 sm:flex-none btn-secondary">
-                تصدير تقرير
-              </button>
-              <button className="flex-1 sm:flex-none btn-primary">
-                إضافة جديد
-              </button>
-            </div>
-          </div>
-
+        <div className="p-10 max-w-7xl mx-auto w-full flex-1">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
               {renderContent()}
@@ -1169,15 +1152,15 @@ export default function App() {
         </div>
 
         {/* Footer */}
-        <footer className="mt-auto py-8 px-8 border-t border-slate-200 dark:border-slate-800 text-center lg:text-right">
-          <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-slate-400">
-              نظام حلول لإدارة المؤسسات - الإصدار 2.5.0
+        <footer className="py-10 px-10 border-t border-zinc-100 dark:border-zinc-900">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+            <p className="text-xs text-zinc-400 font-medium tracking-wide">
+              نظام حلول لإدارة المؤسسات - الإصدار 3.0.0
             </p>
-            <div className="flex gap-6 text-xs font-bold text-slate-400 uppercase tracking-widest">
-              <a href="#" className="hover:text-emerald-500 transition-colors">الدعم الفني</a>
-              <a href="#" className="hover:text-emerald-500 transition-colors">سياسة الخصوصية</a>
-              <a href="#" className="hover:text-emerald-500 transition-colors">شروط الاستخدام</a>
+            <div className="flex gap-8 text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">
+              <a href="#" className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">الدعم الفني</a>
+              <a href="#" className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">سياسة الخصوصية</a>
+              <a href="#" className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">شروط الاستخدام</a>
             </div>
           </div>
         </footer>

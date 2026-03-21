@@ -32,7 +32,7 @@ interface Sale {
   client: string;
 }
 
-export default function SalesDebtsPage({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
+export default function SalesDebtsPage({ currentUser, refreshCounter, token }: { currentUser: any, refreshCounter?: number, token: string }) {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -62,7 +62,12 @@ export default function SalesDebtsPage({ currentUser, refreshCounter }: { curren
 
   const fetchSales = async () => {
     try {
-      const response = await fetch('/api/sales');
+      const response = await fetch('/api/sales', {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-User-Id': currentUser?.id?.toString() || '' 
+        }
+      });
       const data = await response.json();
       setSales(data);
       calculateStats(data);

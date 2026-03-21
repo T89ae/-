@@ -49,9 +49,9 @@ interface FinancialReport {
 
 // --- Components ---
 
-export default function AccountingPage({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
+export default function AccountingPage({ currentUser, refreshCounter, token }: { currentUser: any, refreshCounter?: number, token: string }) {
   const [activeTab, setActiveTab] = useState('reports');
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
 
   return (
     <div className="space-y-6">
@@ -88,11 +88,11 @@ export default function AccountingPage({ currentUser, refreshCounter }: { curren
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
         >
-          {activeTab === 'reports' && <FinancialReports currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} />}
-          {activeTab === 'sales' && <SalesManagement currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} />}
-          {activeTab === 'debts' && <DebtManagement currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} />}
-          {activeTab === 'inventory' && <InventoryManagement currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} />}
-          {activeTab === 'expenses' && <ExpenseManagement currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} />}
+          {activeTab === 'reports' && <FinancialReports currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} token={token} />}
+          {activeTab === 'sales' && <SalesManagement currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} token={token} />}
+          {activeTab === 'debts' && <DebtManagement currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} token={token} />}
+          {activeTab === 'inventory' && <InventoryManagement currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} token={token} />}
+          {activeTab === 'expenses' && <ExpenseManagement currentUser={currentUser} isAdmin={isAdmin} refreshCounter={refreshCounter} token={token} />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -101,7 +101,7 @@ export default function AccountingPage({ currentUser, refreshCounter }: { curren
 
 // --- Sub-Components ---
 
-function FinancialReports({ currentUser, isAdmin, refreshCounter }: { currentUser: any, isAdmin: boolean, refreshCounter?: number }) {
+function FinancialReports({ currentUser, isAdmin, refreshCounter, token }: { currentUser: any, isAdmin: boolean, refreshCounter?: number, token: string }) {
   const [report, setReport] = useState<FinancialReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
@@ -110,7 +110,10 @@ function FinancialReports({ currentUser, isAdmin, refreshCounter }: { currentUse
     setLoading(true);
     const query = dateRange.start && dateRange.end ? `?startDate=${dateRange.start}&endDate=${dateRange.end}` : '';
     const res = await fetch(`/api/reports/financial${query}`, {
-      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'X-User-Id': currentUser?.id?.toString() || '' 
+      }
     });
     const data = await res.json();
     setReport(data);
@@ -269,7 +272,7 @@ function FinancialReports({ currentUser, isAdmin, refreshCounter }: { currentUse
   );
 }
 
-function DebtManagement({ currentUser, isAdmin, refreshCounter }: { currentUser: any, isAdmin: boolean, refreshCounter?: number }) {
+function DebtManagement({ currentUser, isAdmin, refreshCounter, token }: { currentUser: any, isAdmin: boolean, refreshCounter?: number, token: string }) {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -283,7 +286,10 @@ function DebtManagement({ currentUser, isAdmin, refreshCounter }: { currentUser:
 
   const fetchDebts = async () => {
     const res = await fetch('/api/debts', {
-      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'X-User-Id': currentUser?.id?.toString() || '' 
+      }
     });
     const data = await res.json();
     setDebts(data);
@@ -464,7 +470,7 @@ function DebtManagement({ currentUser, isAdmin, refreshCounter }: { currentUser:
   );
 }
 
-function InventoryManagement({ currentUser, isAdmin, refreshCounter }: { currentUser: any, isAdmin: boolean, refreshCounter?: number }) {
+function InventoryManagement({ currentUser, isAdmin, refreshCounter, token }: { currentUser: any, isAdmin: boolean, refreshCounter?: number, token: string }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -479,7 +485,10 @@ function InventoryManagement({ currentUser, isAdmin, refreshCounter }: { current
 
   const fetchProducts = async () => {
     const res = await fetch('/api/products', {
-      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'X-User-Id': currentUser?.id?.toString() || '' 
+      }
     });
     const data = await res.json();
     setProducts(data);
@@ -635,13 +644,16 @@ function InventoryManagement({ currentUser, isAdmin, refreshCounter }: { current
   );
 }
 
-function SalesManagement({ currentUser, isAdmin, refreshCounter }: { currentUser: any, isAdmin: boolean, refreshCounter?: number }) {
+function SalesManagement({ currentUser, isAdmin, refreshCounter, token }: { currentUser: any, isAdmin: boolean, refreshCounter?: number, token: string }) {
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchSales = async () => {
     const res = await fetch('/api/sales', {
-      headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'X-User-Id': currentUser?.id?.toString() || '' 
+      }
     });
     const data = await res.json();
     setSales(data);
@@ -721,7 +733,7 @@ function SalesManagement({ currentUser, isAdmin, refreshCounter }: { currentUser
   );
 }
 
-function ExpenseManagement({ currentUser, isAdmin, refreshCounter }: { currentUser: any, isAdmin: boolean, refreshCounter?: number }) {
+function ExpenseManagement({ currentUser, isAdmin, refreshCounter, token }: { currentUser: any, isAdmin: boolean, refreshCounter?: number, token: string }) {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -736,10 +748,16 @@ function ExpenseManagement({ currentUser, isAdmin, refreshCounter }: { currentUs
   const fetchData = async () => {
     const [expRes, catRes] = await Promise.all([
       fetch('/api/expenses', {
-        headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-User-Id': currentUser?.id?.toString() || '' 
+        }
       }),
       fetch('/api/expense-categories', {
-        headers: { 'X-User-Id': currentUser?.id?.toString() || '' }
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-User-Id': currentUser?.id?.toString() || '' 
+        }
       })
     ]);
     setExpenses(await expRes.json());

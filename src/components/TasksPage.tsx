@@ -29,7 +29,7 @@ interface Task {
   completed_at?: string;
 }
 
-export default function TasksPage({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
+export default function TasksPage({ currentUser, refreshCounter, token }: { currentUser: any, refreshCounter?: number, token: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -60,7 +60,12 @@ export default function TasksPage({ currentUser, refreshCounter }: { currentUser
 
   const fetchTasks = async () => {
     try {
-      const response = await fetch('/api/tasks');
+      const response = await fetch('/api/tasks', {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-User-Id': currentUser?.id?.toString() || '' 
+        }
+      });
       const data = await response.json();
       setTasks(data);
       calculateStats(data);

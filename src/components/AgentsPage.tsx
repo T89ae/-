@@ -35,7 +35,7 @@ interface AgentRequest {
   created_at: string;
 }
 
-export default function AgentsPage() {
+export default function AgentsPage({ token }: { token: string }) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [requests, setRequests] = useState<AgentRequest[]>([]);
@@ -53,7 +53,11 @@ export default function AgentsPage() {
 
   const fetchAgents = async () => {
     try {
-      const res = await fetch('/api/agents');
+      const res = await fetch('/api/agents', {
+        headers: { 
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await res.json();
       setAgents(data);
     } catch (error) {
@@ -65,7 +69,11 @@ export default function AgentsPage() {
 
   const fetchRequests = async (agentId: number) => {
     try {
-      const res = await fetch(`/api/agents/${agentId}/requests`);
+      const res = await fetch(`/api/agents/${agentId}/requests`, {
+        headers: { 
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await res.json();
       setRequests(data);
     } catch (error) {

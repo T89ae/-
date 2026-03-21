@@ -27,7 +27,7 @@ interface FileRecord {
 
 import { analyzeFileWithAI } from '../services/geminiService';
 
-export default function FileManagementPage({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
+export default function FileManagementPage({ currentUser, refreshCounter, token }: { currentUser: any, refreshCounter?: number, token: string }) {
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -39,7 +39,12 @@ export default function FileManagementPage({ currentUser, refreshCounter }: { cu
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/files');
+      const response = await fetch('/api/files', {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-User-Id': currentUser?.id?.toString() || '' 
+        }
+      });
       const data = await response.json();
       setFiles(data);
     } catch (error) {

@@ -39,7 +39,7 @@ interface Client {
   created_at: string;
 }
 
-export default function ClientsPage({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
+export default function ClientsPage({ currentUser, refreshCounter, token }: { currentUser: any, refreshCounter?: number, token: string }) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -62,7 +62,12 @@ export default function ClientsPage({ currentUser, refreshCounter }: { currentUs
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/clients');
+      const response = await fetch('/api/clients', {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-User-Id': currentUser?.id?.toString() || '' 
+        }
+      });
       const data = await response.json();
       setClients(data);
     } catch (error) {

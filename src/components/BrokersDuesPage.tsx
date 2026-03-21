@@ -29,7 +29,7 @@ interface BrokerDue {
   notes: string;
 }
 
-export default function BrokersDuesPage({ currentUser, refreshCounter }: { currentUser: any, refreshCounter?: number }) {
+export default function BrokersDuesPage({ currentUser, refreshCounter, token }: { currentUser: any, refreshCounter?: number, token: string }) {
   const [dues, setDues] = useState<BrokerDue[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -58,7 +58,12 @@ export default function BrokersDuesPage({ currentUser, refreshCounter }: { curre
 
   const fetchDues = async () => {
     try {
-      const response = await fetch('/api/broker-dues');
+      const response = await fetch('/api/broker-dues', {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-User-Id': currentUser?.id?.toString() || '' 
+        }
+      });
       const data = await response.json();
       setDues(data);
       calculateStats(data);

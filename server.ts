@@ -11,9 +11,13 @@ import fs from 'fs';
 import cors from 'cors';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 const { readFile, utils } = (XLSX as any).default || XLSX;
 
 dotenv.config();
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Ensure uploads directory exists
 const uploadsDir = path.resolve('uploads');
@@ -64,10 +68,175 @@ const server = http.createServer(app);
   app.use(cors());
   app.use('/uploads', express.static('uploads'));
 
+  // Middleware to authenticate token
+  const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+    jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+      if (err) return res.status(403).json({ error: 'Forbidden' });
+      (req as any).user = user;
+      next();
+    });
+  };
+
+  // Middleware to check permissions
+  const checkPermission = (permission: string) => {
+    return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      const user = (req as any).user;
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      if (user.role === 'owner') return next();
+      
+      const permissions = JSON.parse(user.permissions || '[]');
+      if (permissions.includes(permission)) return next();
+      
+      res.status(403).json({ error: 'Forbidden: Missing permission ' + permission });
+    };
+  };
+
   // Logging Helper
   const logAction = (userId: number | null, action: string, details: string, req: express.Request) => {
-    // Logging disabled as logs table was removed
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    db.prepare('INSERT INTO audit_logs (user_id, action, details, timestamp, ip_address) VALUES (?, ?, ?, ?, ?)')
+      .run(userId, action, details, new Date().toISOString(), String(ip));
   };
+
+  // Initialize default owner and CEO
+  const initOwner = async () => {
+    const ceoId = 1095972897;
+    const ceo = db.prepare("SELECT * FROM users WHERE id = ?").get(ceoId);
+    const hashedPassword = await bcrypt.hash('Tt@112233', 10);
+
+    if (!ceo) {
+      db.prepare("INSERT INTO users (id, username, email, password, role, permissions, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .run(ceoId, 'CEO', 'ceo@example.com', hashedPassword, 'owner', '[]', new Date().toISOString());
+      console.log('CEO user created: CEO / Tt@112233');
+    } else {
+      // Ensure CEO has correct properties
+      db.prepare("UPDATE users SET username = ?, role = ?, password = ? WHERE id = ?")
+        .run('CEO', 'owner', hashedPassword, ceoId);
+    }
+
+    const owner = db.prepare("SELECT * FROM users WHERE role = 'owner' AND id != ?").get(ceoId);
+    if (!owner) {
+      const defaultHashedPassword = await bcrypt.hash('admin123', 10);
+      db.prepare("INSERT INTO users (username, email, password, role, permissions, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+        .run('owner', 'owner@example.com', defaultHashedPassword, 'owner', '[]', new Date().toISOString());
+      console.log('Default owner created: owner / admin123');
+    }
+  };
+  initOwner();
+
+  // Auth API
+  app.post('/api/auth/login', async (req, res) => {
+    const { username, password } = req.body;
+    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as any;
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role, permissions: user.permissions },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    db.prepare('UPDATE users SET last_login = ? WHERE id = ?').run(new Date().toISOString(), user.id);
+    logAction(user.id, 'LOGIN', 'User logged in', req);
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        permissions: JSON.parse(user.permissions || '[]')
+      }
+    });
+  });
+
+  // Users Management API
+  app.get('/api/users', authenticateToken, checkPermission('manage_users'), (req, res) => {
+    const users = db.prepare('SELECT id, username, email, role, permissions, last_login, created_at FROM users').all();
+    const processed = users.map((u: any) => ({ ...u, permissions: JSON.parse(u.permissions || '[]') }));
+    res.json(processed);
+  });
+
+  app.post('/api/users', authenticateToken, checkPermission('manage_users'), async (req, res) => {
+    const { username, email, password, role, permissions } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    try {
+      const info = db.prepare(`
+        INSERT INTO users (username, email, password, role, permissions, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(username, email, hashedPassword, role, JSON.stringify(permissions || []), new Date().toISOString());
+      
+      logAction((req as any).user.id, 'USER_ADD', `Added user: ${username}`, req);
+      res.json({ id: info.lastInsertRowid, status: 'ok' });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.put('/api/users/:id', authenticateToken, checkPermission('manage_users'), async (req, res) => {
+    const { username, email, password, role, permissions } = req.body;
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id) as any;
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Prevent modifying CEO (ID 1095972897) by anyone else
+    if (user.id === 1095972897 && (req as any).user.id !== 1095972897) {
+      return res.status(403).json({ error: 'Cannot modify CEO account' });
+    }
+
+    // Prevent modifying owner
+    if (user.role === 'owner' && (req as any).user.role !== 'owner') {
+      return res.status(403).json({ error: 'Cannot modify owner' });
+    }
+
+    let query = 'UPDATE users SET username = ?, email = ?, role = ?, permissions = ?';
+    const params = [username, email, role, JSON.stringify(permissions || [])];
+
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      query += ', password = ?';
+      params.push(hashedPassword);
+    }
+
+    query += ' WHERE id = ?';
+    params.push(req.params.id);
+
+    try {
+      db.prepare(query).run(...params);
+      logAction((req as any).user.id, 'USER_UPDATE', `Updated user: ${username}`, req);
+      res.json({ status: 'ok' });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete('/api/users/:id', authenticateToken, checkPermission('manage_users'), (req, res) => {
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id) as any;
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.role === 'owner') return res.status(403).json({ error: 'Cannot delete owner' });
+
+    db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+    logAction((req as any).user.id, 'USER_DELETE', `Deleted user: ${user.username}`, req);
+    res.json({ status: 'ok' });
+  });
+
+  app.get('/api/audit-logs', authenticateToken, checkPermission('view_reports'), (req, res) => {
+    const logs = db.prepare(`
+      SELECT audit_logs.*, users.username 
+      FROM audit_logs 
+      LEFT JOIN users ON audit_logs.user_id = users.id 
+      ORDER BY timestamp DESC LIMIT 100
+    `).all();
+    res.json(logs);
+  });
 
   // Sales API
   app.get('/api/sales', (req, res) => {

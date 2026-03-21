@@ -169,6 +169,28 @@ db.exec(`
     created_at TEXT,
     FOREIGN KEY (sale_id) REFERENCES sales(id)
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    email TEXT UNIQUE,
+    password TEXT,
+    role TEXT, -- 'owner', 'admin', 'user'
+    permissions TEXT, -- JSON string of granular permissions
+    last_login TEXT,
+    created_at TEXT,
+    is_2fa_enabled INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    action TEXT,
+    details TEXT,
+    timestamp TEXT,
+    ip_address TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
 `);
 
 // Migration: Add nid, registration_date, last_followup_date to workers
