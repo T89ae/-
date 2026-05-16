@@ -1,0 +1,37 @@
+RewriteEngine On
+RewriteBase /thiqa/
+
+# Redirect to HTTPS (uncomment in production)
+# RewriteCond %{HTTPS} off
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# API routing
+RewriteRule ^api/(.*)$ api/index.php?$1 [QSA,L]
+
+# Security: Protect config & includes
+<FilesMatch "\.(php)$">
+  <RequireAll>
+    Require all granted
+  </RequireAll>
+</FilesMatch>
+
+<DirectoryMatch "^.*(config|includes).*$">
+  Require all denied
+</DirectoryMatch>
+
+# Uploads: disable PHP execution
+<Directory "uploads">
+  php_flag engine off
+  Options -Indexes -ExecCGI
+</Directory>
+
+# Security headers
+<IfModule mod_headers.c>
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-XSS-Protection "1; mode=block"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Disable directory listing
+Options -Indexes
